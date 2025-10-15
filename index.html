@@ -1,1346 +1,1133 @@
-﻿<!DOCTYPE html>
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>فرم تخصصی بازدید آموزشی - مقطع ابتدایی</title>
-  <!-- SweetAlert2 -->
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <!-- Jalali Moment for Persian Date -->
-  <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jalali-moment@3.3.10/dist/jalali-moment.browser.js"></script>
-  <!-- Chart.js for dashboard charts -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-  <!-- Vazir Font from CDN -->
-  <link href="https://v1.fontapi.ir/css/Vazir:300,400,500" rel="stylesheet">
-  <!-- Papa Parse for CSV import -->
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-  <style>
-    body {
-      background: linear-gradient(135deg, #1e40af, #3b82f6); /* تغییر رنگ به آبی روشن و تیره */
-      min-height: 100vh;
-      font-family: 'Vazir', sans-serif;
-      font-size: 0.85rem;
-      transition: background-color 0.3s, color 0.3s;
-    }
-    body.dark-mode {
-      background: linear-gradient(135deg, #1e3a8a, #111827);
-      color: #e5e7eb;
-    }
-    .container {
-      max-width: 100%;
-      margin: 0 auto;
-      padding: 1rem;
-    }
-    .card {
-      background: white;
-      border-radius: 1rem;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
-      padding: 1.5rem;
-      margin-bottom: 2rem;
-      transition: transform 0.3s, background-color 0.3s;
-    }
-    .card.dark-mode {
-      background: #374151;
-      color: #e5e7eb;
-    }
-    .card:hover {
-      transform: translateY(-5px);
-    }
-    .gradient-btn {
-      background: linear-gradient(90deg, #3b82f6, #60a5fa);
-      color: white;
-      padding: 0.5rem 1.5rem;
-      border: none;
-      border-radius: 1.5rem;
-      font-size: 0.9rem;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-      position: relative;
-      overflow: hidden;
-    }
-    .gradient-btn:hover {
-      background: linear-gradient(90deg, #2563eb, #3b82f6);
-      transform: translateY(-2px);
-      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
-    }
-    .gradient-btn::before {
-      content: '';
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 0;
-      height: 0;
-      background: rgba(255, 255, 255, 0.2);
-      border-radius: 50%;
-      transform: translate(-50%, -50%);
-      transition: width 0.6s ease, height 0.6s ease;
-    }
-    .gradient-btn:hover::before {
-      width: 200px;
-      height: 200px;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    th, td {
-      border: 1px solid #e5e7eb;
-      padding: 0.5rem;
-      text-align: right;
-      font-size: 0.8rem;
-    }
-    th {
-      background: #bfdbfe;
-      color: #1e40af;
-      font-weight: 600;
-    }
-    .dark-mode th {
-      background: #3b82f6;
-      color: #e5e7eb;
-    }
-    textarea, input[type="number"], input[type="text"], input[type="date"], select {
-      width: 100%;
-      font-size: 0.8rem;
-      padding: 0.5rem;
-      border: 1px solid #3b82f6;
-      border-radius: 0.5rem;
-      transition: border-color 0.3s;
-      background: white;
-      color: #1f2937;
-    }
-    .dark-mode textarea, .dark-mode input, .dark-mode select {
-      background: #4b5563;
-      color: #e5e7eb;
-      border-color: #6b7280;
-    }
-    textarea:focus, input:focus, select:focus {
-      border-color: #2563eb;
-      outline: none;
-      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
-    }
-    textarea {
-      resize: vertical;
-    }
-    .average {
-      font-weight: bold;
-      color: #2563eb;
-    }
-    .dark-mode .average {
-      color: #93c5fd;
-    }
-    .footer {
-      text-align: center;
-      font-size: 0.75rem;
-      color: #fff;
-      margin-top: 2rem;
-      opacity: 0.9;
-    }
-    .dark-mode .footer {
-      color: #d1d5db;
-    }
-    .tooltip {
-      position: relative;
-      display: inline-block;
-    }
-    .tooltip .tooltiptext {
-      visibility: hidden;
-      width: 200px;
-      background-color: #1f2937;
-      color: #fff;
-      text-align: center;
-      border-radius: 6px;
-      padding: 5px;
-      position: absolute;
-      z-index: 1;
-      bottom: 125%;
-      right: 50%;
-      transform: translateX(50%);
-      opacity: 0;
-      transition: opacity 0.3s;
-    }
-    .tooltip:hover .tooltiptext {
-      visibility: visible;
-      opacity: 1;
-    }
-    .search-container {
-      display: flex;
-      gap: 1rem;
-      margin-bottom: 1rem;
-    }
-    #chartContainer {
-      max-width: 600px;
-      margin: 2rem auto;
-    }
-    .header {
-      text-align: center;
-      color: #fff;
-      font-size: 1.2rem;
-      margin-bottom: 1rem;
-    }
-    .header small {
-      display: block;
-      font-size: 0.8rem;
-      margin-top: 0.5rem;
-    }
-    @media (max-width: 640px) {
-      .container {
-        padding: 0.75rem;
-      }
-      .card {
-        padding: 1rem;
-        border-radius: 0.75rem;
-      }
-      th, td {
-        padding: 0.3rem;
-        font-size: 0.7rem;
-      }
-      input, textarea, select {
-        font-size: 0.75rem;
-        padding: 0.4rem;
-      }
-      .gradient-btn {
-        padding: 0.6rem 1.2rem;
-        font-size: 0.85rem;
-      }
-      .button-container {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        background: white;
-        padding: 0.5rem;
-        box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.1);
-        z-index: 10;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-        justify-content: center;
-        overflow-y: auto;
-        max-height: 20vh;
-      }
-      .dark-mode .button-container {
-        background: #1f2937;
-      }
-      .gradient-btn {
-        flex: 1 1 calc(50% - 0.5rem); /* دو ستونه در موبایل */
-        max-width: calc(50% - 0.5rem);
-      }
-      .grid-cols-2 {
-        grid-template-columns: 1fr;
-      }
-      .search-container {
-        flex-direction: column;
-      }
-      .header {
-        font-size: 1rem;
-      }
-      .header small {
-        font-size: 0.7rem;
-      }
-    }
-    /* سبک برای پرینت PDF */
-    @media print {
-      body {
-        font-size: 8pt;
-        margin: 0;
-      }
-      .container {
-        padding: 0;
-      }
-      .card {
-        box-shadow: none;
-        margin: 0;
-        page-break-inside: avoid;
-      }
-      table {
-        page-break-inside: auto;
-      }
-      th, td {
-        padding: 4px;
-        border: 0.5px solid #000;
-        font-size: 7pt;
-      }
-      .button-container, #dashboard, #toggleDarkMode, #default_score, button {
-        display: none;
-      }
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>آموزش و پرورش - اپلیکیشن مدیریت</title>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://cdn.jsdelivr.net/npm/fontawesome@6.6.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/vazirmatn@33.0.0/Vazirmatn-font-face.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Vazirmatn', sans-serif;
+            font-size: 12px;
+            margin: 0;
+            padding: 0;
+            color: #fff;
+            background: linear-gradient(135deg, #1a237e, #4fc3f7);
+            overflow-x: hidden;
+            animation: backgroundFlow 15s infinite ease-in-out;
+            transition: background 0.3s;
+        }
+        body.dark-mode {
+            background: linear-gradient(135deg, #121212, #424242);
+            color: #ddd;
+        }
+        .background-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('https://images.unsplash.com/photo-1503676260728-1f548d3d6f88') no-repeat center center fixed;
+            background-size: cover;
+            opacity: 0.3;
+            z-index: -1;
+            transform: translateZ(0);
+        }
+        @keyframes backgroundFlow {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
+            transform-style: preserve-3d;
+            animation: float 6s ease-in-out infinite;
+        }
+        @keyframes float {
+            0% { transform: translateY(0) rotateX(0deg) rotateY(0deg); }
+            50% { transform: translateY(-20px) rotateX(5deg) rotateY(5deg); }
+            100% { transform: translateY(0) rotateX(0deg) rotateY(0deg); }
+        }
+        .header {
+            background: linear-gradient(90deg, #d81b60, #8e24aa);
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-size: 14px;
+            border-radius: 10px;
+            animation: pulseGlow 2s infinite ease-in-out;
+        }
+        @keyframes pulseGlow {
+            0% { box-shadow: 0 0 10px rgba(216, 27, 96, 0.7); }
+            50% { box-shadow: 0 0 20px rgba(216, 27, 96, 1); }
+            100% { box-shadow: 0 0 10px rgba(216, 27, 96, 0.7); }
+        }
+        .dashboard {
+            display: none;
+            animation: zoomIn3D 0.8s ease;
+        }
+        @keyframes zoomIn3D {
+            from { transform: scale(0.8) rotateX(-10deg); opacity: 0; }
+            to { transform: scale(1) rotateX(0deg); opacity: 1; }
+        }
+        .active { display: block; }
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            background: linear-gradient(45deg, #ff4081, #7c4dff);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+            transform-style: preserve-3d;
+        }
+        button:hover {
+            transform: translateZ(10px) scale(1.1);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+        .small-btn {
+            padding: 4px 8px;
+            font-size: 10px;
+        }
+        input, select, textarea {
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            width: calc(100% - 20px);
+            transition: border 0.3s;
+        }
+        input:focus, select:focus, textarea:focus {
+            border: 1px solid #ff4081;
+            outline: none;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+            background: rgba(255, 255, 255, 0.1);
+        }
+        th, td {
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 8px;
+            text-align: center;
+            color: white;
+        }
+        th {
+            background: linear-gradient(45deg, #0288d1, #4fc3f7);
+            cursor: pointer;
+        }
+        canvas {
+            display: block;
+            margin: 20px auto;
+            border-radius: 10px;
+        }
+        .star-rating { display: inline-block; }
+        .star-rating input { display: none; }
+        .star-rating label {
+            font-size: 20px;
+            color: rgba(255, 255, 255, 0.5);
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+        .star-rating input:checked ~ label,
+        .star-rating label:hover,
+        .star-rating label:hover ~ label {
+            color: #ffca28;
+        }
+        .file-preview {
+            max-width: 100px;
+            max-height: 100px;
+            margin: 5px;
+            border-radius: 5px;
+        }
+        @media (max-width: 600px) {
+            .container { padding: 10px; }
+            button { padding: 6px 12px; }
+            input, select, textarea { width: 100%; }
+        }
+        footer {
+            background: linear-gradient(90deg, #d81b60, #8e24aa);
+            color: white;
+            text-align: center;
+            padding: 10px;
+            position: relative;
+            bottom: 0;
+            width: 100%;
+            border-radius: 0 0 10px 10px;
+            animation: slideUp 1s ease;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        #login {
+            max-width: 400px;
+            margin: 100px auto;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            text-align: center;
+        }
+        #login input {
+            margin: 10px 0;
+            width: 80%;
+        }
+        #login button {
+            width: 50%;
+        }
+    </style>
 </head>
 <body>
-  <div class="header">
-    📚 بسم الله الرحمن الرحیم 📚
-  </div>
-
-  <div class="container">
-    <div class="card">
-      <h1 class="text-2xl font-bold text-center text-indigo-900 mb-4 dark-mode:text-indigo-300">فرم تخصصی بازدید آموزشی - مقطع ابتدایی</h1>
-      <p class="text-center text-gray-600 text-sm mb-6 dark-mode:text-gray-400">اداره آموزش و پرورش ناحیه سه شیراز</p>
-
-      <!-- دکمه حالت تاریک -->
-      <div class="flex justify-end mb-4">
-        <button id="toggleDarkMode" class="gradient-btn">تغییر به حالت تاریک</button>
-      </div>
-
-      <!-- فیلتر جستجوی پیشرفته -->
-      <div class="search-container">
-        <div class="w-full">
-          <label class="block text-xs font-medium text-gray-700 dark-mode:text-gray-300">جستجوی فرم ذخیره‌شده</label>
-          <input id="search_form" type="text" placeholder="جستجو بر اساس نام، کد پرسنلی یا تاریخ" class="mt-1">
-        </div>
-        <div class="w-full">
-          <label class="block text-xs font-medium text-gray-700 dark-mode:text-gray-300">انتخاب فرم ذخیره‌شده</label>
-          <select id="load_form_select" class="mt-1 block w-full rounded-md border-gray-300">
-            <option value="">-- هیچ‌کدام --</option>
-          </select>
-        </div>
-        <button onclick="loadForm()" class="gradient-btn px-4 py-1 mt-2">بارگذاری فرم</button>
-      </div>
-
-      <!-- داشبورد تحلیلی -->
-      <div class="card" id="dashboard">
-        <h2 class="text-lg font-semibold text-indigo-800 mb-3 dark-mode:text-indigo-300">داشبورد تحلیلی</h2>
-        <canvas id="scoreChart"></canvas>
-      </div>
-
-      <!-- فرم اطلاعات اولیه -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <div class="tooltip">
-          <label class="block text-xs font-medium text-gray-700 dark-mode:text-gray-300">نام مدرسه</label>
-          <input id="school" type="text" required>
-          <span class="tooltiptext">نام کامل مدرسه را وارد کنید</span>
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-gray-700 dark-mode:text-gray-300">نام مدیر</label>
-          <input id="manager" type="text" required>
-        </div>
-        <div class="tooltip">
-          <label class="block text-xs font-medium text-gray-700 dark-mode:text-gray-300">کد پرسنلی (۸ رقم)</label>
-          <input id="personnel_code" type="text" maxlength="8" pattern="[0-9]{8}" required>
-          <span class="tooltiptext">کد پرسنلی ۸ رقمی را وارد کنید</span>
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-gray-700 dark-mode:text-gray-300">نام بازرس</label>
-          <input id="inspector" type="text" required>
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-gray-700 dark-mode:text-gray-300">تاریخ بازدید (میلادی)</label>
-          <input id="date" type="date" required>
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-gray-700 dark-mode:text-gray-300">تاریخ بازدید (شمسی)</label>
-          <input id="persian_date" type="text" readonly>
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-gray-700 dark-mode:text-gray-300">مدت زمان حضور (دقیقه)</label>
-          <input id="duration" type="number" required>
-        </div>
-        <div class="md:col-span-2">
-          <label class="block text-xs font-medium text-gray-700 dark-mode:text-gray-300">توضیحات اضافی</label>
-          <textarea id="extra_comments" rows="3"></textarea>
-        </div>
-        <div class="md:col-span-2">
-          <label class="block text-xs font-medium text-gray-700 dark-mode:text-gray-300">نمره پیش‌فرض</label>
-          <select id="default_score" class="mt-1">
-            <option value="">انتخاب</option>
-            <option value="عالی">عالی</option>
-            <option value="خوب">خوب</option>
-            <option value="متوسط">متوسط</option>
-            <option value="نیازمند تلاش">نیازمند تلاش</option>
-          </select>
-          <button onclick="fillDefaultScores()" class="gradient-btn px-4 py-1 mt-2">اعمال نمره پیش‌فرض</button>
-        </div>
-        <div class="md:col-span-2">
-          <label class="block text-xs font-medium text-gray-700 dark-mode:text-gray-300">انتخاب ماه</label>
-          <select id="month_select" class="mt-1" onchange="loadMonthAxes()">
-            <option value="">-- انتخاب ماه --</option>
-            <option value="مهر">مهر</option>
-            <option value="آبان">آبان</option>
-            <option value="آذر">آذر</option>
-            <option value="دی">دی</option>
-            <option value="بهمن">بهمن</option>
-            <option value="اسفند">اسفند</option>
-            <option value="فروردین">فروردین</option>
-            <option value="اردیبهشت">اردیبهشت</option>
-            <option value="خرداد">خرداد</option>
-            <option value="تیر">تیر</option>
-            <option value="مرداد">مرداد</option>
-            <option value="شهریور">شهریور</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- جدول محورها برای ماه انتخابی -->
-      <div class="card overflow-x-auto" id="month_axes">
-        <h2 class="text-lg font-semibold text-indigo-800 mb-3 dark-mode:text-indigo-300" id="month_title">محورهای بازدید ماه انتخاب‌شده</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>ردیف</th>
-              <th>محور ارزیابی</th>
-              <th>توضیح</th>
-              <th>نمره</th>
-            </tr>
-          </thead>
-          <tbody id="axes_table_body">
-            <!-- محورها به صورت دینامیک لود می‌شوند -->
-          </tbody>
-        </table>
-        <p class="average mt-2">میانگین ماه: <span id="month_avg">0</span></p>
-      </div>
-
-      <!-- نمایش میانگین کل 12 ماه -->
-      <p class="average mt-4">میانگین کل 12 ماه: <span id="overall_avg">0</span></p>
-
-      <!-- تحلیل اتوماتیک -->
-      <div class="card">
-        <h2 class="text-lg font-semibold text-indigo-800 mb-3 dark-mode:text-indigo-300">تحلیل اتوماتیک</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>محور تحلیل</th>
-              <th>توضیحات</th>
-            </tr>
-          </thead>
-          <tbody id="smart_analysis">
-            <tr><td>تحلیل هوش</td><td>-</td></tr>
-            <tr><td>تحلیل راهبردی</td><td>-</td></tr>
-            <tr><td>تحلیل روانشناسی</td><td>-</td></tr>
-            <tr><td>تحلیل کمکی</td><td>-</td></tr>
-            <tr><td>تحلیل عملکرد کلی</td><td>-</td></tr>
-            <tr><td>تحلیل نقاط قوت و ضعف</td><td>-</td></tr>
-            <tr><td>پیشنهادات</td><td>-</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="button-container flex justify-center space-x-2 mt-6 md:space-x-4">
-        <button onclick="startTour()" class="gradient-btn">راهنمای تعاملی</button>
-        <button onclick="saveForm()" class="gradient-btn">ذخیره فرم</button>
-        <button onclick="previewForm()" class="gradient-btn">پیش‌نمایش گزارش</button>
-        <button onclick="printForm()" class="gradient-btn">چاپ گزارش (PDF)</button>
-        <button onclick="exportToJSON()" class="gradient-btn">صادرات به JSON</button>
-        <button onclick="importJSON()" class="gradient-btn">ورود از JSON</button>
-        <button onclick="exportToCSV()" class="gradient-btn">صادرات به اکسل</button>
-        <button onclick="importCSV()" class="gradient-btn">ورود از اکسل</button>
-        <button onclick="clearForm()" class="gradient-btn">پاک کردن فرم</button>
-        <button onclick="clearAllData()" class="gradient-btn">پاک کردن تمام اطلاعات</button>
-      </div>
+    <div class="background-overlay"></div>
+    <div class="header">
+        ﷽ بسم الله الرحمن الرحیم 📖<br>
+        برنامه مدیریت آموزش و پرورش 🏫<br>
+        تاریخ: <span id="date"></span> 📅
+        <button onclick="toggleTheme()" style="float: left;"><i class="fas fa-moon"></i></button>
     </div>
-  </div>
+    <div class="container">
+        <!-- صفحه لوگین ساده -->
+        <div id="login" class="dashboard active">
+            <h2><i class="fas fa-sign-in-alt"></i> ورود</h2>
+            <input type="text" id="username" placeholder="نام کاربری (1)" value="1">
+            <input type="password" id="password" placeholder="رمز عبور (1)" value="1">
+            <button onclick="login()"><i class="fas fa-sign-in-alt"></i> ورود</button>
+            <p id="login-error" style="color: #ff4081;"></p>
+        </div>
 
-  <div class="footer">
-    سازنده حسین هادی پور 🔨
-  </div>
+        <!-- داشبورد اصلی -->
+        <div id="main-dashboard" class="dashboard">
+            <h2><i class="fas fa-tachometer-alt"></i> داشبورد اصلی</h2>
+            <p>نام کاربری: <span id="current-username"></span> <i class="fas fa-user"></i></p>
+            <input type="password" id="new-password" placeholder="تغییر رمز عبور جدید">
+            <button onclick="changePassword()">تغییر رمز <i class="fas fa-key"></i></button>
+            <button onclick="showDashboard('people-def')">تعریف افراد <i class="fas fa-users"></i></button>
+            <button onclick="showDashboard('people-table')">جدول افراد <i class="fas fa-table"></i></button>
+            <button onclick="showDashboard('criteria-def')">تعریف معیارها <i class="fas fa-ruler"></i></button>
+            <button onclick="showDashboard('reportcard')">کارنامه <i class="fas fa-file-alt"></i></button>
+            <button onclick="showDashboard('notes')">یادداشت‌ها <i class="fas fa-sticky-note"></i></button>
+            <button onclick="showDashboard('folder')">پوشه کار <i class="fas fa-folder"></i></button>
+            <button onclick="showDashboard('files')">فایل‌های افراد <i class="fas fa-file"></i></button>
+            <button onclick="showDashboard('chart')">نمودار معدل <i class="fas fa-chart-bar"></i></button>
+            <button onclick="showDashboard('summary')">خلاصه گزارش <i class="fas fa-clipboard-list"></i></button>
+            <button onclick="showDashboard('rewards')">پاداش و اضافه‌کاری <i class="fas fa-money-bill"></i></button>
+            <button onclick="exportData()">خروجی داده‌ها <i class="fas fa-download"></i></button>
+            <button onclick="logout()">خروج <i class="fas fa-sign-out-alt"></i></button>
+        </div>
 
-  <script>
-    // داده‌های محورها برای هر ماه
-    const monthAxes = {
-      'مهر': [
-        'تدوین برنامه سالانه مدرسه با تأکید بر ارزشیابی توصیفی.',
-        'نظارت بر تشکیل پوشه‌های کار دانش‌آموزان توسط معلمان.',
-        'برگزاری جلسه توجیهی با معلمان برای تبیین آیین‌نامه ارزشیابی کیفی.',
-        'ایجاد شورای معلمان برای هماهنگی برنامه‌های آموزشی.',
-        'برقراری ارتباط اولیه با والدین (جلسه عمومی).',
-        'تخصیص منابع (ابزارهای کیفی، نرم‌افزارهای مدیریتی).',
-        'نظارت بر اجرای ارزیابی‌های تشخیصی معلمان.',
-        'طراحی برنامه‌های پرورشی برای تقویت محیط عاطفی (قره‌داغی: "مدرسه، خانه اعتماد").',
-        'مستندسازی فعالیت‌های نظارتی در دفتر مدیریت.',
-        'ارزیابی اولیه عملکرد معلمان در ارزشیابی کیفی.',
-        'هماهنگی با اداره آموزش برای دستورالعمل‌ها.',
-        'خودارزیابی مدیر از برنامه‌ریزی اولیه.'
-      ],
-      'آبان': [
-        'بررسی گزارش‌های اولیه معلمان (فرم الف).',
-        'نظارت بر ثبت بازخوردهای توصیفی در پوشه‌های کار.',
-        'برگزاری جلسه شورای معلمان برای تحلیل پیشرفت.',
-        'هماهنگی با والدین برای مشارکت در یادگیری.',
-        'نظارت بر اجرای فعالیت‌های گروهی تربیتی.',
-        'بررسی ابزارهای کیفی معلمان (چک‌لیست، مشاهده).',
-        'ادغام فعالیت‌های فرهنگی (مثل هفته کتاب) با اهداف آموزشی.',
-        'مستندسازی شواهد نظارتی در گزارش‌های ماهانه.',
-        'حمایت از معلمان برای به‌روزرسانی روش‌های تدریس.',
-        'ارزیابی اثربخشی جلسات والدین.',
-        'هماهنگی با معاونان برای برنامه‌های پرورشی.',
-        'خودارزیابی مدیر از تعامل با ذی‌نفعان.'
-      ],
-      'آذر': [
-        'بررسی گزارش‌های میان‌دوره‌ای معلمان (پوشه کار).',
-        'نظارت بر ارائه بازخوردهای توصیفی عملی به دانش‌آموزان.',
-        'برگزاری جلسه شورای مدرسه برای تحلیل داده‌های پاییز.',
-        'هماهنگی جلسات والدین برای گزارش‌های توصیفی.',
-        'نظارت بر فعالیت‌های تربیتی (پروژه‌های گروهی).',
-        'ارزیابی ابزارهای ارزشیابی کیفی معلمان.',
-        'مستندسازی مشاهدات نظارتی در دفتر مدیریت.',
-        'حمایت از معلمان نیازمند تلاش با کارگاه‌های آموزشی سانوپ.',
-        'ادغام فعالیت‌های فرهنگی با اهداف ارزشیابی.',
-        'بررسی اثربخشی برنامه‌های پرورشی.',
-        'هماهنگی با اداره برای گزارش‌های میانی.',
-        'خودارزیابی مدیر از نظارت پاییزی.'
-      ],
-      'دی': [
-        'بررسی فرم‌های الف نوبت اول معلمان.',
-        'نظارت بر کیفیت بازخوردهای توصیفی (مشخص، عملی).',
-        'برگزاری جلسه شورای معلمان برای تحلیل گزارش‌ها.',
-        'هماهنگی با والدین برای ارائه گزارش نوبت اول.',
-        'نظارت بر فعالیت‌های جبرانی برای دانش‌آموزان نیازمند تلاش.',
-        'بررسی مستندات کلاسی (پوشه کار، چک‌لیست).',
-        'حمایت از معلمان برای کارگاه‌های ارزشیابی کیفی قره‌داغی.',
-        'مستندسازی گزارش‌های نظارتی نوبت اول.',
-        'ادغام فعالیت‌های زمستانی با اهداف تربیتی.',
-        'ارزیابی اثربخشی تعاملات با ذی‌نفعان.',
-        'هماهنگی با معاونان برای برنامه‌های جبرانی.',
-        'خودارزیابی مدیر از مدیریت نوبت اول.'
-      ],
-      'بهمن': [
-        'نظارت بر اجرای بازخوردهای نوبت اول.',
-        'بررسی آزمون‌های عملکردی توصیفی معلمان.',
-        'برگزاری جلسه شورای مدرسه برای تحلیل پیشرفت.',
-        'نظارت بر ثبت داده‌ها در دفتر مدیریت کلاس.',
-        'هماهنگی با والدین برای مشارکت مستمر.',
-        'حمایت از معلمان با ابزارهای الکترونیکی (سیدا).',
-        'مستندسازی شواهد نظارتی در گزارش‌های ماهانه.',
-        'برنامه‌ریزی فعالیت‌های خانگی برای تعطیلات.',
-        'ارزیابی اثربخشی فعالیت‌های تربیتی گروهی.',
-        'هماهنگی با اداره برای گزارش‌های نظارتی.',
-        'بررسی عملکرد معلمان نیازمند تلاش.',
-        'خودارزیابی مدیر از پشتیبانی آموزشی.'
-      ],
-      'اسفند': [
-        'بررسی جمع‌بندی نیم‌سال اول معلمان.',
-        'نظارت بر ارائه بازخوردهای توصیفی پیش از تعطیلات.',
-        'هماهنگی برای تکالیف نوروزی توصیفی (قره‌داغی: "پیوستگی در تعطیلات").',
-        'برگزاری جلسه نهایی با والدین.',
-        'نظارت بر مستندات کلاسی (پوشه کار، چک‌لیست).',
-        'ادغام جشن‌های اسفند با اهداف تربیتی.',
-        'حمایت از معلمان برای به‌روزرسانی ابزارها.',
-        'مستندسازی گزارش‌های نظارتی پایانی نیم‌سال.',
-        'ارزیابی اثربخشی برنامه‌های پرورشی.',
-        'هماهنگی با معاونان برای برنامه‌های نوروزی.',
-        'بررسی عملکرد معلمان در ارزشیابی کیفی.',
-        'خودارزیابی مدیر از برنامه‌ریزی تعطیلات.'
-      ],
-      'فروردین': [
-        'نظارت بر ارزیابی‌های سریع پس از تعطیلات.',
-        'بررسی فعالیت‌های جبرانی معلمان برای افت یادگیری.',
-        'برگزاری جلسه شورای معلمان برای تحلیل افت.',
-        'هماهنگی با والدین برای گزارش تأثیر تعطیلات.',
-        'نظارت بر اجرای فعالیت‌های تیمی کلاسی.',
-        'بررسی مستندات کلاسی (پوشه کار، چک‌لیست).',
-        'حمایت از معلمان برای برنامه‌های پروژه‌محور.',
-        'مستندسازی مشاهدات نظارتی پس از تعطیلات.',
-        'ارزیابی اثربخشی بازخوردهای توصیفی.',
-        'هماهنگی با اداره برای برنامه‌های جبرانی.',
-        'بررسی عملکرد معلمان در جبران افت.',
-        'خودارزیابی مدیر از مدیریت نیم‌سال دوم.'
-      ],
-      'اردیبهشت': [
-        'بررسی فرم‌های الف نوبت دوم معلمان (۷-۱۴ اردیبهشت).',
-        'نظارت بر کیفیت بازخوردهای توصیفی پایانی.',
-        'برگزاری جلسه شورای مدرسه برای جمع‌بندی سال.',
-        'هماهنگی جلسات انتقال به پایه بعدی با والدین.',
-        'نظارت بر مستندات کلاسی (پوشه کار، چک‌لیست).',
-        'حمایت از معلمان برای پیشنهادهای تابستانی.',
-        'مستندسازی گزارش‌های نظارتی نوبت دوم.',
-        'ارزیابی اثربخشی فعالیت‌های تربیتی سال.',
-        'هماهنگی با معاونان برای گزارش‌های پایانی.',
-        'بررسی عملکرد معلمان در ارزشیابی پایانی.',
-        'ادغام فعالیت‌های خلاق با اهداف آموزشی.',
-        'خودارزیابی مدیر از عملکرد سالانه.'
-      ],
-      'خرداد': [
-        'بررسی و تأیید فرم‌های الف نوبت دوم.',
-        'نظارت بر صدور گزارش‌های توصیفی به والدین.',
-        'برگزاری جلسات شورای مدرسه برای تحلیل عملکرد سالانه.',
-        'هماهنگی انتقال دانش‌آموزان به پایه‌های بالاتر.',
-        'تشکیل ستاد ثبت‌نام پس از ابلاغ اواسط خرداد.',
-        'تهیه گزارش عملکرد سالانه برای اداره آموزش و پرورش.',
-        'حمایت از معلمان برای تکمیل پرونده‌های آموزشی.',
-        'مستندسازی شواهد ارزشیابی کیفی در سامانه‌ها.',
-        'ارزیابی اثربخشی برنامه‌های تربیتی سالانه.',
-        'هماهنگی با والدین برای جلسات پایانی و بازخورد.',
-        'خودارزیابی مدیر از اجرای ارزشیابی کیفی.',
-        'برنامه‌ریزی برای ثبت‌نام و تعمیرات تابستانی.'
-      ],
-      'تیر': [
-        'نظارت بر تعمیرات فیزیکی مدرسه (نظافت، ایمنی تجهیزات).',
-        'آغاز فرآیند ثبت‌نام مطابق دستورالعمل (از ۱ تیر، با سنجش سلامت).',
-        'بررسی درخواست‌های تغییر مدیران (کارگروه انتخاب).',
-        'برگزاری جلسات ستاد ثبت‌نام (دوشنبه/چهارشنبه).',
-        'هماهنگی با اداره برای تخصیص بودجه تعمیرات و ثبت‌نام.',
-        'مستندسازی گزارش‌های نظارتی تابستانی در سامانه‌ها.',
-        'حمایت از معلمان در دوره‌های ضمن‌خدمت تابستانی.',
-        'ارزیابی ابزارهای ارزشیابی برای سال تحصیلی جدید.',
-        'ادغام فعالیت‌های تابستانی با اهداف تربیتی.',
-        'تعامل با والدین برای اطلاع‌رسانی فرآیند ثبت‌نام.',
-        'خودارزیابی مدیر از مدیریت تابستانی.',
-        'تهیه پیش‌نویس برنامه سال تحصیلی جدید.'
-      ],
-      'مرداد': [
-        'نظارت بر تکمیل ثبت‌نام تا ۱۵ مرداد (مطابق دستورالعمل).',
-        'بررسی و تأیید اسناد ثبت‌نام و نقل‌وانتقال دانش‌آموزان.',
-        'برگزاری جلسات ستاد ثبت‌نام (دوشنبه/چهارشنبه).',
-        'هماهنگی با اداره برای ابلاغ مدیران جدید (تا پایان مرداد).',
-        'نظارت بر تعمیرات پیشرفته (تجهیزات آموزشی، فضای سبز).',
-        'مستندسازی گزارش‌های ثبت‌نام در سامانه سیدا.',
-        'حمایت از دوره‌های آموزشی مدیران (الگوی مدرسه تراز).',
-        'به‌روزرسانی ابزارهای ارزشیابی کیفی برای سال جدید.',
-        'برنامه‌ریزی فعالیت‌های پرورشی تابستانی.',
-        'تعامل با انجمن اولیا برای مشارکت در ثبت‌نام.',
-        'خودارزیابی مدیر از مدیریت اداری تابستانی.',
-        'تهیه بودجه پیشنهادی برای سال تحصیلی جدید.'
-      ],
-      'شهریور': [
-        'بررسی نتایج انتخاب مدیران و ارزشیابی کادر (تا ۱۵ شهریور).',
-        'نظارت بر آماده‌سازی فیزیکی مدرسه برای بازگشایی.',
-        'برگزاری جلسه معارفه مدیران جدید با شورای معلمان.',
-        'هماهنگی ثبت‌نام نهایی دانش‌آموزان.',
-        'نظارت بر تشکیل شوراهای مدرسه برای مهر.',
-        'مستندسازی گزارش‌های تابستانی و ارسال به اداره.',
-        'حمایت از معلمان در آموزش سازگاری (۱-۴ شهریور).',
-        'ارزیابی اثربخشی تعمیرات و منابع آموزشی.',
-        'ادغام برنامه‌های فرهنگی (مراسم بازگشایی) با اهداف تربیتی.',
-        'تعامل با والدین برای جلسه توجیهی پیش از مهر.',
-        'خودارزیابی مدیر از آماده‌سازی سال جدید و ارزشیابی کادر.',
-        'ابلاغ برنامه هفتگی و مقررات انضباطی برای مهر.'
-      ]
-    };
-
-    // نمره‌های عددی برای محاسبه
-    const scoreValues = {
-      'عالی': 4,
-      'خوب': 3,
-      'متوسط': 2,
-      'نیازمند تلاش': 1
-    };
-
-    // رنگ‌های برای ستون‌های نمودار
-    const chartColors = [
-      '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40',
-      '#E5E7EB', '#D1D5DB', '#9CA3AF', '#6B7280', '#4B5563', '#374151'
-    ];
-
-    // پیام خوش‌آمدگویی و تبدیل تاریخ
-    window.onload = function() {
-      Swal.fire({
-        icon: 'info',
-        title: 'خوش‌آمدگویی',
-        html: 'لطفاً فرم را با دقت پر کنید. برای ذخیره داده‌ها از دکمه "ذخیره فرم" استفاده کنید.<br>برای راهنمایی، از دکمه "راهنمای تعاملی" استفاده کنید.',
-        confirmButtonText: 'باشه'
-      });
-
-      // تبدیل تاریخ میلادی به شمسی
-      document.getElementById('date').addEventListener('change', function() {
-        const date = this.value;
-        if (date) {
-          const persianDate = moment(date).locale('fa').format('YYYY/MM/DD');
-          document.getElementById('persian_date').value = persianDate;
-        } else {
-          document.getElementById('persian_date').value = '';
-        }
-      });
-
-      // بارگذاری لیست فرم‌های ذخیره‌شده
-      loadFormList();
-
-      // جستجوی پیشرفته
-      document.getElementById('search_form').addEventListener('input', filterForms);
-
-      // اعتبارسنجی ورودی‌ها
-      document.getElementById('personnel_code').addEventListener('input', function() {
-        this.value = this.value.replace(/[^0-9]/g, '');
-        if (this.value.length > 8) {
-          this.value = this.value.slice(0, 8);
-          Swal.fire({
-            icon: 'warning',
-            title: 'هشدار',
-            text: 'کد پرسنلی باید ۸ رقم باشد.',
-          });
-        }
-      });
-
-      // نمایش نمودار اولیه
-      updateChart();
-    };
-
-    // تابع بارگذاری لیست فرم‌ها
-    function loadFormList() {
-      const select = document.getElementById('load_form_select');
-      select.innerHTML = '<option value="">-- هیچ‌کدام --</option>';
-      const personnelCodes = {};
-      Object.keys(localStorage).filter(key => key.startsWith('primary_inspection_form_')).forEach(key => {
-        const formData = JSON.parse(localStorage.getItem(key));
-        let displayName = `${formData.manager} - ${formData.persian_date} - ${formData.personnel_code}`;
-        const code = formData.personnel_code;
-        if (personnelCodes[code]) {
-          personnelCodes[code]++;
-          displayName += ` (${personnelCodes[code]})`;
-        } else {
-          personnelCodes[code] = 1;
-        }
-        const option = document.createElement('option');
-        option.value = key;
-        option.textContent = displayName;
-        select.appendChild(option);
-      });
-    }
-
-    // تابع جستجوی پیشرفته
-    function filterForms() {
-      const searchValue = document.getElementById('search_form').value.toLowerCase();
-      const select = document.getElementById('load_form_select');
-      select.innerHTML = '<option value="">-- هیچ‌کدام --</option>';
-      const personnelCodes = {};
-      Object.keys(localStorage).filter(key => key.startsWith('primary_inspection_form_')).forEach(key => {
-        const formData = JSON.parse(localStorage.getItem(key));
-        const searchString = `${formData.manager} ${formData.personnel_code} ${formData.persian_date}`.toLowerCase();
-        if (searchString.includes(searchValue)) {
-          let displayName = `${formData.manager} - ${formData.persian_date} - ${formData.personnel_code}`;
-          const code = formData.personnel_code;
-          if (personnelCodes[code]) {
-            personnelCodes[code]++;
-            displayName += ` (${personnelCodes[code]})`;
-          } else {
-            personnelCodes[code] = 1;
-          }
-          const option = document.createElement('option');
-          option.value = key;
-          option.textContent = displayName;
-          select.appendChild(option);
-        }
-      });
-    }
-
-    // تابع تغییر حالت تاریک
-    document.getElementById('toggleDarkMode').addEventListener('click', function() {
-      document.body.classList.toggle('dark-mode');
-      document.querySelectorAll('.card, .average, .footer, th, td, label').forEach(el => el.classList.toggle('dark-mode'));
-      this.textContent = document.body.classList.contains('dark-mode') ? 'تغییر به حالت روشن' : 'تغییر به حالت تاریک';
-    });
-
-    // تابع لود محورهای ماه
-    function loadMonthAxes() {
-      const month = document.getElementById('month_select').value;
-      if (!month) {
-        document.getElementById('month_title').textContent = 'محورهای بازدید ماه انتخاب‌شده';
-        document.getElementById('axes_table_body').innerHTML = '';
-        document.getElementById('month_avg').textContent = '0';
-        return;
-      }
-
-      document.getElementById('month_title').textContent = `محورهای بازدید ماه ${month}`;
-      const axes = monthAxes[month] || [];
-      let tableBody = '';
-      axes.forEach((axis, index) => {
-        tableBody += `
-          <tr>
-            <td>${index + 1}</td>
-            <td>${axis}</td>
-            <td><textarea rows="2" class="month_comment" oninput="saveForm()"></textarea></td>
-            <td>
-              <select class="month_score" onchange="calculateMonthAvg(); saveForm()">
-                <option value="">انتخاب</option>
-                <option value="عالی">عالی</option>
-                <option value="خوب">خوب</option>
-                <option value="متوسط">متوسط</option>
-                <option value="نیازمند تلاش">نیازمند تلاش</option>
-              </select>
-            </td>
-          </tr>
-        `;
-      });
-      document.getElementById('axes_table_body').innerHTML = tableBody;
-
-      // لود داده‌های قبلی اگر وجود داشته باشد
-      const formData = getCurrentFormData();
-      if (formData && formData.months[month]) {
-        const scores = formData.months[month].scores;
-        const comments = formData.months[month].comments;
-        document.querySelectorAll('.month_score').forEach((select, index) => {
-          select.value = scores[index] || '';
-        });
-        document.querySelectorAll('.month_comment').forEach((textarea, index) => {
-          textarea.value = comments[index] || '';
-        });
-        calculateMonthAvg();
-      }
-    }
-
-    // تابع محاسبه میانگین ماه
-    function calculateMonthAvg() {
-      const scores = Array.from(document.querySelectorAll('.month_score')).map(select => scoreValues[select.value] || 0);
-      const validScores = scores.filter(s => s > 0);
-      const avg = validScores.length > 0 ? (validScores.reduce((a, b) => a + b, 0) / validScores.length).toFixed(2) : 0;
-      document.getElementById('month_avg').textContent = avg;
-      calculateOverallAvg();
-    }
-
-    // تابع محاسبه میانگین کل 12 ماه
-    function calculateOverallAvg() {
-      const formData = getCurrentFormData();
-      if (!formData) return;
-      const months = Object.keys(formData.months);
-      let totalSum = 0;
-      let totalCount = 0;
-      months.forEach(month => {
-        const scores = formData.months[month].scores.map(s => scoreValues[s] || 0);
-        const validScores = scores.filter(s => s > 0);
-        if (validScores.length > 0) {
-          totalSum += validScores.reduce((a, b) => a + b, 0);
-          totalCount += validScores.length;
-        }
-      });
-      const overallAvg = totalCount > 0 ? (totalSum / totalCount).toFixed(2) : 0;
-      document.getElementById('overall_avg').textContent = overallAvg;
-      generateSmartAnalysis(overallAvg);
-      updateChart(formData);
-    }
-
-    // تابع اعمال نمره پیش‌فرض به محورهای ماه
-    function fillDefaultScores() {
-      const defaultScore = document.getElementById('default_score').value;
-      if (!defaultScore) {
-        Swal.fire({
-          icon: 'error',
-          title: 'خطا',
-          text: 'نمره پیش‌فرض را انتخاب کنید.',
-        });
-        return;
-      }
-
-      document.querySelectorAll('.month_score').forEach(select => {
-        select.value = defaultScore;
-      });
-
-      const defaultComment = {
-        'عالی': 'عالی، بدون نقص.',
-        'خوب': 'خوب، عملکرد مناسب.',
-        'متوسط': 'متوسط، نیاز به بهبود.',
-        'نیازمند تلاش': 'نیازمند تلاش بیشتر.'
-      }[defaultScore];
-      document.querySelectorAll('.month_comment').forEach(textarea => {
-        textarea.value = defaultComment;
-      });
-
-      calculateMonthAvg();
-      saveForm(); // ذخیره خودکار پس از اعمال
-      Swal.fire({
-        icon: 'success',
-        title: 'اعمال شد',
-        text: 'نمره پیش‌فرض و توضیحات اعمال شد.',
-      });
-    }
-
-    // تابع ذخیره فرم
-    function saveForm() {
-      const personnelCode = document.getElementById('personnel_code').value;
-      if (!/^\d{8}$/.test(personnelCode)) return; // بدون هشدار، زیرا خودکار است
-
-      const month = document.getElementById('month_select').value;
-      if (!month) return;
-
-      const formData = getCurrentFormData() || {
-        school: document.getElementById('school').value,
-        manager: document.getElementById('manager').value,
-        personnel_code: personnelCode,
-        inspector: document.getElementById('inspector').value,
-        date: document.getElementById('date').value,
-        persian_date: document.getElementById('persian_date').value,
-        duration: document.getElementById('duration').value,
-        extra_comments: document.getElementById('extra_comments').value,
-        months: {}
-      };
-
-      formData.school = document.getElementById('school').value;
-      formData.manager = document.getElementById('manager').value;
-      formData.inspector = document.getElementById('inspector').value;
-      formData.date = document.getElementById('date').value;
-      formData.persian_date = document.getElementById('persian_date').value;
-      formData.duration = document.getElementById('duration').value;
-      formData.extra_comments = document.getElementById('extra_comments').value;
-
-      formData.months[month] = {
-        scores: Array.from(document.querySelectorAll('.month_score')).map(select => select.value),
-        comments: Array.from(document.querySelectorAll('.month_comment')).map(textarea => textarea.value)
-      };
-
-      const key = `primary_inspection_form_${formData.manager}_${formData.date}_${personnelCode}`;
-      localStorage.setItem(key, JSON.stringify(formData));
-      loadFormList();
-      calculateOverallAvg();
-      // بدون سوالت، زیرا خودکار است
-    }
-
-    // تابع دریافت داده فرم فعلی
-    function getCurrentFormData() {
-      const select = document.getElementById('load_form_select');
-      const key = select.value;
-      if (!key) return null;
-      return JSON.parse(localStorage.getItem(key));
-    }
-
-    // تابع بارگذاری فرم انتخاب‌شده
-    function loadForm() {
-      const select = document.getElementById('load_form_select');
-      const key = select.value;
-      if (!key) return;
-
-      const formData = JSON.parse(localStorage.getItem(key));
-      if (formData) {
-        document.getElementById('school').value = formData.school || '';
-        document.getElementById('manager').value = formData.manager || '';
-        document.getElementById('personnel_code').value = formData.personnel_code || '';
-        document.getElementById('inspector').value = formData.inspector || '';
-        document.getElementById('date').value = formData.date || '';
-        document.getElementById('persian_date').value = formData.persian_date || '';
-        document.getElementById('duration').value = formData.duration || '';
-        document.getElementById('extra_comments').value = formData.extra_comments || '';
-        document.getElementById('month_select').value = '';
-        document.getElementById('axes_table_body').innerHTML = '';
-        document.getElementById('month_avg').textContent = '0';
-        calculateOverallAvg();
-        Swal.fire({
-          icon: 'success',
-          title: 'بارگذاری شد',
-          text: 'فرم انتخاب‌شده بارگذاری شد. حالا ماه را انتخاب کنید.',
-        });
-      }
-    }
-
-    // تابع به‌روزرسانی نمودار
-    let scoreChart;
-    function updateChart(formData = null) {
-      const ctx = document.getElementById('scoreChart').getContext('2d');
-      const months = Object.keys(monthAxes);
-      const data = months.map(month => {
-        if (formData && formData.months[month]) {
-          const scores = formData.months[month].scores.map(s => scoreValues[s] || 0);
-          const validScores = scores.filter(s => s > 0);
-          return validScores.length > 0 ? validScores.reduce((a, b) => a + b, 0) / validScores.length : 0;
-        }
-        return 0;
-      });
-
-      if (scoreChart) scoreChart.destroy();
-      scoreChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: months,
-          datasets: [{
-            label: 'میانگین نمرات ماهانه',
-            data: data,
-            backgroundColor: chartColors,
-            borderColor: chartColors.map(color => color.replace('0.6', '1')),
-            borderWidth: 1
-          }]
-        },
-        options: {
-          scales: {
-            y: { beginAtZero: true, max: 4 }
-          }
-        }
-      });
-    }
-
-    // تابع راهنمای تعاملی
-    function startTour() {
-      Swal.fire({
-        title: 'راهنمای تعاملی',
-        html: `
-          <p>1. <b>اطلاعات اولیه:</b> فیلدهای اجباری را پر کنید.</p>
-          <p>2. <b>انتخاب ماه:</b> ماه را انتخاب کنید و محورها را نمره‌دهی کنید.</p>
-          <p>3. <b>نمره پیش‌فرض:</b> برای پر کردن سریع استفاده کنید.</p>
-          <p>4. <b>ذخیره:</b> تغییرات خودکار ذخیره می‌شود.</p>
-          <p>5. <b>میانگین:</b> میانگین ماه و کل سال نمایش داده می‌شود.</p>
-          <p>6. <b>تحلیل:</b> تحلیل اتوماتیک بر اساس میانگین تولید می‌شود.</p>
-          <p>7. <b>صادرات/ورود:</b> از JSON و اکسل استفاده کنید.</p>
-        `,
-        confirmButtonText: 'باشه'
-      });
-    }
-
-    // تابع پاک کردن فرم
-    function clearForm() {
-      Swal.fire({
-        title: 'آیا مطمئن هستید؟',
-        text: 'داده‌های فرم فعلی پاک خواهد شد.',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'بله',
-        cancelButtonText: 'خیر'
-      }).then((result) => {
-        if (result.isConfirmed) {
-          document.querySelectorAll('input, textarea, select:not(#month_select)').forEach(element => element.value = '');
-          document.getElementById('axes_table_body').innerHTML = '';
-          document.getElementById('month_avg').textContent = '0';
-          document.getElementById('overall_avg').textContent = '0';
-          document.getElementById('smart_analysis').innerHTML = `
-            <tr><td>تحلیل هوش</td><td>-</td></tr>
-            <tr><td>تحلیل راهبردی</td><td>-</td></tr>
-            <tr><td>تحلیل روانشناسی</td><td>-</td></tr>
-            <tr><td>تحلیل کمکی</td><td>-</td></tr>
-            <tr><td>تحلیل عملکرد کلی</td><td>-</td></tr>
-            <tr><td>تحلیل نقاط قوت و ضعف</td><td>-</td></tr>
-            <tr><td>پیشنهادات</td><td>-</td></tr>
-          `;
-          const select = document.getElementById('load_form_select');
-          localStorage.removeItem(select.value);
-          select.value = '';
-          loadFormList();
-          updateChart();
-          Swal.fire('پاک شد!', 'فرم پاک شد.', 'success');
-        }
-      });
-    }
-
-    // تابع پیش‌نمایش گزارش
-    function previewForm() {
-      const formData = getCurrentFormData();
-      if (!formData) {
-        Swal.fire({
-          icon: 'warning',
-          title: 'هشدار',
-          text: 'فرمی بارگذاری نشده است.',
-        });
-        return;
-      }
-
-      const content = generatePrintContent(formData);
-      const win = window.open('', '_blank');
-      win.document.write(content);
-      win.document.close();
-    }
-
-    // تابع چاپ گزارش
-    function printForm() {
-      const formData = getCurrentFormData();
-      if (!formData) {
-        Swal.fire({
-          icon: 'warning',
-          title: 'هشدار',
-          text: 'فرمی بارگذاری نشده است.',
-        });
-        return;
-      }
-
-      const content = generatePrintContent(formData);
-      const win = window.open('', '_blank');
-      win.document.write(content);
-      win.document.close();
-      win.print();
-    }
-
-    // تابع تولید محتوای چاپ
-    function generatePrintContent(formData) {
-      let content = `
-        <html dir="rtl">
-        <head>
-          <meta charset="UTF-8">
-          <link href="https://v1.fontapi.ir/css/Vazir:300,400,500" rel="stylesheet">
-          <style>
-            body { font-family: Vazir, sans-serif; font-size: 8pt; margin: 10px; }
-            table { width: 100%; border-collapse: collapse; }
-            th, td { border: 1px solid #000; padding: 4px; font-size: 7pt; text-align: center; }
-            th { background: #bfdbfe; color: #1e40af; }
-            .section { margin-bottom: 10px; page-break-inside: avoid; }
-          </style>
-        </head>
-        <body>
-          <h3>گزارش بازدید - ${formData.manager}</h3>
-          <div class="section">
-            <h4>اطلاعات پایه</h4>
-            <table>
-              <tr><th>مدرسه</th><td>${formData.school}</td></tr>
-              <tr><th>مدیر</th><td>${formData.manager}</td></tr>
-              <tr><th>کد پرسنلی</th><td>${formData.personnel_code}</td></tr>
-              <tr><th>بازرس</th><td>${formData.inspector}</td></tr>
-              <tr><th>تاریخ (شمسی)</th><td>${formData.persian_date}</td></tr>
-              <tr><th>مدت</th><td>${formData.duration}</td></tr>
-              <tr><th>توضیحات</th><td>${formData.extra_comments || '-'}</td></tr>
+        <!-- داشبورد تعریف افراد -->
+        <div id="people-def" class="dashboard">
+            <h2><i class="fas fa-users"></i> تعریف افراد</h2>
+            <button class="small-btn" onclick="showDashboard('main-dashboard')">بازگشت <i class="fas fa-arrow-right"></i></button>
+            <input type="text" id="person-name" placeholder="نام">
+            <input type="text" id="person-role" placeholder="نقش فرد">
+            <input type="text" id="person-personnel" placeholder="کد پرسنلی">
+            <input type="text" id="person-father" placeholder="نام پدر">
+            <input type="text" id="person-other" placeholder="مشخصات دیگر">
+            <select id="person-filter">
+                <option>فیلتر: همه</option>
+                <option>فعال</option>
+                <option>غیرفعال</option>
+            </select>
+            <button onclick="addPerson()">ثبت <i class="fas fa-plus"></i></button>
+            <table id="people-table-def">
+                <tr><th>نام</th><th>نقش</th><th>کد پرسنلی</th><th>نام پدر</th><th>دیگر</th><th>عملیات</th></tr>
             </table>
-          </div>
-      `;
+        </div>
 
-      Object.keys(monthAxes).forEach(month => {
-        if (formData.months[month]) {
-          const scores = formData.months[month].scores;
-          const comments = formData.months[month].comments;
-          content += `
-            <div class="section">
-              <h4>ماه ${month}</h4>
-              <table>
-                <tr><th>ردیف</th><th>محور</th><th>توضیح</th><th>نمره</th></tr>
-                ${monthAxes[month].map((axis, i) => `
-                  <tr>
-                    <td>${i + 1}</td>
-                    <td>${axis}</td>
-                    <td>${comments[i] || '-'}</td>
-                    <td>${scores[i] || '-'}</td>
-                  </tr>
-                `).join('')}
-              </table>
-            </div>
-          `;
-        }
-      });
-
-      content += `
-          <div class="section">
-            <h4>جمع‌بندی</h4>
-            <table>
-              <tr><th>میانگین کل</th><td>${document.getElementById('overall_avg').textContent}</td></tr>
+        <!-- داشبورد جدول افراد -->
+        <div id="people-table" class="dashboard">
+            <h2><i class="fas fa-table"></i> جدول افراد</h2>
+            <button class="small-btn" onclick="showDashboard('main-dashboard')">بازگشت <i class="fas fa-arrow-right"></i></button>
+            <input type="text" id="search-people" placeholder="جستجو...">
+            <table id="people-table-full">
+                <tr><th onclick="sortTable(0)">نام</th><th onclick="sortTable(1)">نقش</th><th onclick="sortTable(2)">کد پرسنلی</th><th onclick="sortTable(3)">نام پدر</th><th onclick="sortTable(4)">دیگر</th><th onclick="sortTable(5)">نمره ارزشیابی ⭐</th><th onclick="sortTable(6)">معدل ⭐</th></tr>
             </table>
-          </div>
-          <div class="section">
-            <h4>تحلیل هوشمند</h4>
-            <table>
-              ${document.getElementById('smart_analysis').innerHTML}
+        </div>
+
+        <!-- داشبورد تعریف معیارها -->
+        <div id="criteria-def" class="dashboard">
+            <h2><i class="fas fa-ruler"></i> تعریف معیارها</h2>
+            <button class="small-btn" onclick="showDashboard('main-dashboard')">بازگشت <i class="fas fa-arrow-right"></i></button>
+            <input type="text" id="criterion-name" placeholder="نام معیار">
+            <button onclick="addCriterion()">اضافه <i class="fas fa-plus"></i></button>
+            <table id="criteria-table">
+                <tr><th>معیار</th><th>عملیات</th></tr>
             </table>
-          </div>
-        </body>
-        </html>
-      `;
+        </div>
 
-      return content;
-    }
+        <!-- داشبورد کارنامه -->
+        <div id="reportcard" class="dashboard">
+            <h2><i class="fas fa-file-alt"></i> کارنامه</h2>
+            <button class="small-btn" onclick="showDashboard('main-dashboard')">بازگشت <i class="fas fa-arrow-right"></i></button>
+            <select id="person-select-rc"></select>
+            <div id="criteria-ratings"></div>
+            <button onclick="saveReportCard()">ذخیره <i class="fas fa-save"></i></button>
+            <p>معدل: <span id="average-rc"></span> ⭐</p>
+        </div>
 
-    // تابع صادرات به JSON
-    function exportToJSON() {
-      const forms = Object.keys(localStorage).filter(key => key.startsWith('primary_inspection_form_')).map(key => JSON.parse(localStorage.getItem(key)));
-      if (forms.length === 0) {
-        Swal.fire({
-          icon: 'warning',
-          title: 'هشدار',
-          text: 'هیچ فرمی برای صادرات وجود ندارد.',
-        });
-        return;
-      }
+        <!-- داشبورد یادداشت‌ها -->
+        <div id="notes" class="dashboard">
+            <h2><i class="fas fa-sticky-note"></i> یادداشت‌ها</h2>
+            <button class="small-btn" onclick="showDashboard('main-dashboard')">بازگشت <i class="fas fa-arrow-right"></i></button>
+            <select id="person-select-notes"></select>
+            <textarea id="note-text" placeholder="یادداشت بنویسید"></textarea>
+            <button onclick="addNote()">اضافه <i class="fas fa-plus"></i></button>
+            <ul id="notes-list"></ul>
+        </div>
 
-      const jsonContent = JSON.stringify(forms, null, 2);
-      const blob = new Blob([jsonContent], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'inspection_forms.json';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      Swal.fire({
-        icon: 'success',
-        title: 'صادر شد',
-        text: 'داده‌ها به فایل JSON صادر شدند.',
-      });
-    }
+        <!-- داشبورد پوشه کار -->
+        <div id="folder" class="dashboard">
+            <h2><i class="fas fa-folder"></i> پوشه کار</h2>
+            <button class="small-btn" onclick="showDashboard('main-dashboard')">بازگشت <i class="fas fa-arrow-right"></i></button>
+            <input type="file" id="folder-file" multiple>
+            <input type="text" id="folder-desc" placeholder="توضیحات فایل">
+            <img id="folder-preview" class="file-preview" style="display: none;">
+            <button onclick="addFolderFile()">افزودن <i class="fas fa-plus"></i></button>
+            <table id="folder-table">
+                <tr><th>نام فایل</th><th>توضیحات</th><th>عملیات</th></tr>
+            </table>
+        </div>
 
-    // تابع ورود از JSON
-    function importJSON() {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = '.json';
-      input.onchange = function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          try {
-            const forms = JSON.parse(e.target.result);
-            const personnelMap = {};
-            forms.forEach(formData => {
-              const personnelCode = formData.personnel_code;
-              const key = `primary_inspection_form_${formData.manager}_${formData.date}_${personnelCode}`;
-              const existingData = JSON.parse(localStorage.getItem(key)) || {};
-              const existingDate = existingData.date ? new Date(existingData.date) : new Date(0);
-              const newDate = formData.date ? new Date(formData.date) : new Date(0);
-              if (!personnelMap[personnelCode] || newDate > personnelMap[personnelCode].date) {
-                personnelMap[personnelCode] = { key, data: formData, date: newDate };
-              }
-            });
-            Object.values(personnelMap).forEach(({ key, data }) => {
-              localStorage.setItem(key, JSON.stringify(data));
-            });
-            loadFormList();
-            Swal.fire({
-              icon: 'success',
-              title: 'وارد شد',
-              text: 'داده‌ها از فایل JSON وارد شدند.',
-            });
-          } catch (err) {
-            Swal.fire({
-              icon: 'error',
-              title: 'خطا',
-              text: 'فایل JSON معتبر نیست.',
-            });
-          }
+        <!-- داشبورد فایل‌های افراد -->
+        <div id="files" class="dashboard">
+            <h2><i class="fas fa-file"></i> فایل‌های افراد</h2>
+            <button class="small-btn" onclick="showDashboard('main-dashboard')">بازگشت <i class="fas fa-arrow-right"></i></button>
+            <select id="person-select-files"></select>
+            <input type="file" id="person-file" multiple>
+            <input type="text" id="person-desc" placeholder="توضیحات فایل">
+            <img id="person-preview" class="file-preview" style="display: none;">
+            <button onclick="addPersonFile()">افزودن <i class="fas fa-plus"></i></button>
+            <button onclick="printAllFiles()">پرینت همه <i class="fas fa-print"></i></button>
+            <table id="files-table">
+                <tr><th>نام فایل</th><th>توضیحات</th><th>عملیات</th></tr>
+            </table>
+        </div>
+
+        <!-- داشبورد نمودار -->
+        <div id="chart" class="dashboard">
+            <h2><i class="fas fa-chart-bar"></i> نمودار معدل</h2>
+            <button class="small-btn" onclick="showDashboard('main-dashboard')">بازگشت <i class="fas fa-arrow-right"></i></button>
+            <canvas id="average-chart" width="400" height="200"></canvas>
+        </div>
+
+        <!-- داشبورد خلاصه گزارش -->
+        <div id="summary" class="dashboard">
+            <h2><i class="fas fa-clipboard-list"></i> خلاصه گزارش</h2>
+            <button class="small-btn" onclick="showDashboard('main-dashboard')">بازگشت <i class="fas fa-arrow-right"></i></button>
+            <select id="person-select-summary" onchange="updateSummary()"></select>
+            <button onclick="printSummary()">پرینت گزارش <i class="fas fa-print"></i></button>
+            <div id="summary-content"></div>
+        </div>
+
+        <!-- داشبورد پاداش و اضافه‌کاری -->
+        <div id="rewards" class="dashboard">
+            <h2><i class="fas fa-money-bill"></i> پاداش و اضافه‌کاری</h2>
+            <button class="small-btn" onclick="showDashboard('main-dashboard')">بازگشت <i class="fas fa-arrow-right"></i></button>
+            <select id="person-select-rewards"></select>
+            <input type="number" id="reward-amount" placeholder="مبلغ پاداش">
+            <input type="number" id="overtime-hours" placeholder="ساعات اضافه‌کاری">
+            <button onclick="addReward()">اضافه <i class="fas fa-plus"></i></button>
+            <table id="rewards-table">
+                <tr><th>پاداش</th><th>اضافه‌کاری</th><th>عملیات</th></tr>
+            </table>
+            <p>جمع کل: <span id="total-rewards">0</span> <i class="fas fa-money-bill"></i></p>
+            <canvas id="rewards-chart" width="400" height="200"></canvas>
+        </div>
+    </div>
+    <footer>
+        ساخته شده توسط حسین هادی پور ❤️
+    </footer>
+
+    <script>
+        // IndexedDB Setup
+        let db;
+        const request = indexedDB.open('EducationAppDB', 1);
+        request.onupgradeneeded = event => {
+            db = event.target.result;
+            db.createObjectStore('files', { keyPath: 'id', autoIncrement: true });
         };
-        reader.readAsText(file);
-      };
-      input.click();
-    }
+        request.onsuccess = event => {
+            db = event.target.result;
+        };
+        request.onerror = () => console.error('IndexedDB error');
 
-    // تابع صادرات به اکسل (CSV)
-    function exportToCSV() {
-      const forms = Object.keys(localStorage).filter(key => key.startsWith('primary_inspection_form_')).map(key => JSON.parse(localStorage.getItem(key)));
-      if (forms.length === 0) {
-        Swal.fire({
-          icon: 'warning',
-          title: 'هشدار',
-          text: 'هیچ فرمی وجود ندارد.',
-        });
-        return;
-      }
+        let username = localStorage.getItem('username') || '1';
+        let password = localStorage.getItem('password') || '1';
+        let loggedIn = false;
+        let people = JSON.parse(LZString.decompress(localStorage.getItem('people'))) || [];
+        let criteria = JSON.parse(LZString.decompress(localStorage.getItem('criteria'))) || [
+            "زمان‌شناسی ⏱️", "کار تیمی 🤝", "کیفیت کار 🏆", "ابتکار 💡", "مسئولیت‌پذیری 📌",
+            "مهارت ارتباطی 🗣️", "یادگیری مداوم 📚", "مدیریت زمان ⌛", "حل مسئله 🧩", "انطباق‌پذیری 🔄",
+            "رهبری 👑", "اخلاق حرفه‌ای ⚖️", "بهره‌وری ⚙️", "مشارکت 🎉", "رضایت مشتری 😊"
+        ];
+        let reportcards = JSON.parse(LZString.decompress(localStorage.getItem('reportcards'))) || {};
+        let notes = JSON.parse(LZString.decompress(localStorage.getItem('notes'))) || {};
+        let folderFiles = JSON.parse(LZString.decompress(localStorage.getItem('folderFiles'))) || [];
+        let personFiles = JSON.parse(LZString.decompress(localStorage.getItem('personFiles'))) || {};
+        let rewards = JSON.parse(LZString.decompress(localStorage.getItem('rewards'))) || {};
 
-      const months = Object.keys(monthAxes);
-      const headers = [
-        'مدرسه', 'مدیر', 'کد پرسنلی', 'بازرس', 'تاریخ (شمسی)', 'مدت', 'توضیحات اضافی',
-        ...months.flatMap(month => monthAxes[month].map((axis, i) => `${month} - امتیاز محور ${i+1}`)),
-        ...months.flatMap(month => monthAxes[month].map((axis, i) => `${month} - توضیح محور ${i+1}`)),
-        'میانگین کل'
-      ];
+        // Three.js Animation (Optimized)
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+        renderer.domElement.style.position = 'fixed';
+        renderer.domElement.style.top = '0';
+        renderer.domElement.style.left = '0';
+        renderer.domElement.style.zIndex = '-2';
+        renderer.domElement.style.pointerEvents = 'none';
 
-      const rows = forms.map(formData => {
-        let totalSum = 0;
-        let totalCount = 0;
-        const monthData = months.flatMap(month => {
-          if (formData.months[month]) {
-            const scores = formData.months[month].scores.map(s => scoreValues[s] || 0);
-            const validScores = scores.filter(s => s > 0);
-            totalSum += validScores.reduce((a, b) => a + b, 0);
-            totalCount += validScores.length;
-            return [
-              ...formData.months[month].scores,
-              ...formData.months[month].comments
-            ];
-          } else {
-            return Array(monthAxes[month].length * 2).fill('-');
-          }
-        });
-
-        const overallAvg = totalCount > 0 ? (totalSum / totalCount).toFixed(2) : 0;
-
-        return [
-          formData.school,
-          formData.manager,
-          formData.personnel_code,
-          formData.inspector,
-          formData.persian_date,
-          formData.duration,
-          formData.extra_comments || '-',
-          ...monthData,
-          overallAvg
-        ].map(val => `"${val.toString().replace(/"/g, '""')}"`).join(',');
-      });
-
-      const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + headers.join(',') + '\n' + rows.join('\n');
-      const link = document.createElement('a');
-      link.href = encodeURI(csvContent);
-      link.download = 'inspection_forms.csv';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      Swal.fire({
-        icon: 'success',
-        title: 'صادر شد',
-        text: 'فایل CSV صادر شد.',
-      });
-    }
-
-    // تابع ورود از اکسل (CSV)
-    function importCSV() {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = '.csv';
-      input.onchange = function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        Papa.parse(file, {
-          complete: function(results) {
-            try {
-              const headers = results.data[0];
-              const rows = results.data.slice(1);
-              const personnelMap = {};
-              rows.forEach(row => {
-                const formData = {
-                  school: row[0] || '',
-                  manager: row[1] || '',
-                  personnel_code: row[2] || '',
-                  inspector: row[3] || '',
-                  persian_date: row[4] || '',
-                  date: moment(row[4], 'YYYY/MM/DD').locale('en').format('YYYY-MM-DD') || '',
-                  duration: row[5] || '',
-                  extra_comments: row[6] || '',
-                  months: {}
-                };
-                const months = Object.keys(monthAxes);
-                let colIndex = 7;
-                months.forEach(month => {
-                  const scores = [];
-                  const comments = [];
-                  for (let i = 0; i < monthAxes[month].length; i++) {
-                    scores.push(row[colIndex] || '');
-                    colIndex++;
-                  }
-                  for (let i = 0; i < monthAxes[month].length; i++) {
-                    comments.push(row[colIndex] || '');
-                    colIndex++;
-                  }
-                  if (scores.some(s => s && s !== '-')) {
-                    formData.months[month] = { scores, comments };
-                  }
-                });
-                const personnelCode = formData.personnel_code;
-                const key = `primary_inspection_form_${formData.manager}_${formData.date}_${personnelCode}`;
-                const existingData = JSON.parse(localStorage.getItem(key)) || {};
-                const existingDate = existingData.date ? new Date(existingData.date) : new Date(0);
-                const newDate = formData.date ? new Date(formData.date) : new Date(0);
-                if (!personnelMap[personnelCode] || newDate > personnelMap[personnelCode].date) {
-                  personnelMap[personnelCode] = { key, data: formData, date: newDate };
-                }
-              });
-              Object.values(personnelMap).forEach(({ key, data }) => {
-                localStorage.setItem(key, JSON.stringify(data));
-              });
-              loadFormList();
-              Swal.fire({
-                icon: 'success',
-                title: 'وارد شد',
-                text: 'داده‌ها از فایل CSV وارد شدند.',
-              });
-            } catch (err) {
-              Swal.fire({
-                icon: 'error',
-                title: 'خطا',
-                text: 'فایل CSV معتبر نیست.',
-              });
-            }
-          },
-          header: false,
-          encoding: 'UTF-8'
-        });
-      };
-      input.click();
-    }
-
-    // تابع پاک کردن تمام اطلاعات
-    function clearAllData() {
-      Swal.fire({
-        title: 'آیا مطمئن هستید؟',
-        text: 'تمام داده‌های ذخیره‌شده پاک خواهد شد.',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'بله',
-        cancelButtonText: 'خیر'
-      }).then((result) => {
-        if (result.isConfirmed) {
-          localStorage.clear();
-          loadFormList();
-          clearForm();
-          Swal.fire('پاک شد!', 'تمام اطلاعات پاک شد.', 'success');
+        const geometry = new THREE.BufferGeometry();
+        const vertices = [];
+        for (let i = 0; i < 50; i++) {
+            vertices.push(
+                Math.random() * 100 - 50,
+                Math.random() * 100 - 50,
+                Math.random() * 100 - 50
+            );
         }
-      });
-    }
-  </script>
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        const material = new THREE.PointsMaterial({ color: 0xff4081, size: 0.5 });
+        const particles = new THREE.Points(geometry, material);
+        scene.add(particles);
+        const light = new THREE.PointLight(0xffffff, 1, 100);
+        light.position.set(10, 10, 10);
+        scene.add(light);
+        camera.position.z = 50;
+
+        function animateParticles() {
+            particles.rotation.y += 0.01;
+            renderer.render(scene, camera);
+            requestAnimationFrame(animateParticles);
+        }
+        animateParticles();
+
+        // Theme Toggle
+        function toggleTheme() {
+            document.body.classList.toggle('dark-mode');
+            localStorage.setItem('theme', document.body.classList.contains('dark-mode') ? 'dark' : 'light');
+        }
+        if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark-mode');
+
+        // Date Setup
+        document.getElementById('date').innerText = new Date().toLocaleDateString('fa-IR');
+
+        function saveData() {
+            try {
+                localStorage.setItem('username', username);
+                localStorage.setItem('password', password);
+                localStorage.setItem('people', LZString.compress(JSON.stringify(people)));
+                localStorage.setItem('criteria', LZString.compress(JSON.stringify(criteria)));
+                localStorage.setItem('reportcards', LZString.compress(JSON.stringify(reportcards)));
+                localStorage.setItem('notes', LZString.compress(JSON.stringify(notes)));
+                localStorage.setItem('folderFiles', LZString.compress(JSON.stringify(folderFiles)));
+                localStorage.setItem('personFiles', LZString.compress(JSON.stringify(personFiles)));
+                localStorage.setItem('rewards', LZString.compress(JSON.stringify(rewards)));
+            } catch (e) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'خطا',
+                    text: 'حافظه محلی پر شده است. لطفاً برخی فایل‌ها را حذف کنید.',
+                });
+            }
+        }
+
+        function login() {
+            const un = document.getElementById('username').value.trim();
+            const pw = document.getElementById('password').value.trim();
+            if (!un || !pw) {
+                Swal.fire({ icon: 'error', title: 'خطا', text: 'لطفاً نام کاربری و رمز را وارد کنید.' });
+                return;
+            }
+            if (un === username && pw === password) {
+                loggedIn = true;
+                showDashboard('main-dashboard');
+                document.getElementById('current-username').innerText = username;
+                loadAll();
+                Swal.fire({ icon: 'success', title: 'خوش آمدید!', timer: 1500, showConfirmButton: false });
+            } else {
+                document.getElementById('login-error').innerText = 'نام کاربری یا رمز اشتباه است ❌';
+            }
+        }
+
+        function changePassword() {
+            const newPw = document.getElementById('new-password').value.trim();
+            if (newPw && newPw.length >= 4) {
+                password = newPw;
+                saveData();
+                Swal.fire({ icon: 'success', title: 'رمز تغییر یافت', timer: 1500 });
+            } else {
+                Swal.fire({ icon: 'error', title: 'خطا', text: 'رمز جدید باید حداقل ۴ کاراکتر باشد.' });
+            }
+        }
+
+        function logout() {
+            loggedIn = false;
+            showDashboard('login');
+            Swal.fire({ icon: 'info', title: 'خروج', text: 'شما با موفقیت خارج شدید.', timer: 1500 });
+        }
+
+        function showDashboard(id) {
+            document.querySelectorAll('.dashboard').forEach(d => d.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            if (id === 'people-def') loadPeopleDef();
+            if (id === 'people-table') loadPeopleTable();
+            if (id === 'criteria-def') loadCriteria();
+            if (id === 'reportcard') loadReportCard();
+            if (id === 'notes') loadNotes();
+            if (id === 'folder') loadFolder();
+            if (id === 'files') loadFiles();
+            if (id === 'chart') loadChart();
+            if (id === 'summary') loadSummary();
+            if (id === 'rewards') loadRewards();
+        }
+
+        function addPerson() {
+            const name = document.getElementById('person-name').value.trim();
+            const role = document.getElementById('person-role').value.trim();
+            const personnel = document.getElementById('person-personnel').value.trim();
+            const father = document.getElementById('person-father').value.trim();
+            const other = document.getElementById('person-other').value.trim();
+            if (!name) {
+                Swal.fire({ icon: 'error', title: 'خطا', text: 'نام الزامی است.' });
+                return;
+            }
+            people.push({name, role, personnel, father, other});
+            saveData();
+            loadPeopleDef();
+            Swal.fire({ icon: 'success', title: 'ثبت شد', text: 'فرد با موفقیت اضافه شد.', timer: 1500 });
+        }
+
+        function loadPeopleDef() {
+            const table = document.getElementById('people-table-def');
+            table.innerHTML = '<tr><th>نام</th><th>نقش</th><th>کد پرسنلی</th><th>نام پدر</th><th>دیگر</th><th>عملیات</th></tr>';
+            people.forEach((p, i) => {
+                const row = table.insertRow();
+                row.innerHTML = `<td>${p.name}</td><td>${p.role || ''}</td><td>${p.personnel || ''}</td><td>${p.father || ''}</td><td>${p.other || ''}</td>
+                    <td><button class="small-btn" onclick="editPerson(${i})">ویرایش <i class="fas fa-edit"></i></button><button class="small-btn" onclick="deletePerson(${i})">حذف <i class="fas fa-trash"></i></button></td>`;
+            });
+        }
+
+        function editPerson(i) {
+            const p = people[i];
+            document.getElementById('person-name').value = p.name;
+            document.getElementById('person-role').value = p.role;
+            document.getElementById('person-personnel').value = p.personnel;
+            document.getElementById('person-father').value = p.father;
+            document.getElementById('person-other').value = p.other;
+            people.splice(i, 1);
+            saveData();
+        }
+
+        function deletePerson(i) {
+            Swal.fire({
+                title: 'آیا مطمئن هستید؟',
+                text: 'این فرد حذف خواهد شد!',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'بله، حذف کن',
+                cancelButtonText: 'خیر'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    people.splice(i, 1);
+                    saveData();
+                    loadPeopleDef();
+                    Swal.fire({ icon: 'success', title: 'حذف شد', timer: 1500 });
+                }
+            });
+        }
+
+        function loadPeopleTable() {
+            const table = document.getElementById('people-table-full');
+            table.innerHTML = '<tr><th onclick="sortTable(0)">نام</th><th onclick="sortTable(1)">نقش</th><th onclick="sortTable(2)">کد پرسنلی</th><th onclick="sortTable(3)">نام پدر</th><th onclick="sortTable(4)">دیگر</th><th onclick="sortTable(5)">نمره ارزشیابی ⭐</th><th onclick="sortTable(6)">معدل ⭐</th></tr>';
+            const search = document.getElementById('search-people').value.toLowerCase();
+            people.filter(p => p.name.toLowerCase().includes(search) || (p.role || '').toLowerCase().includes(search)).forEach(p => {
+                const ratings = reportcards[p.name] || criteria.map(() => 0);
+                const avg = ratings.reduce((a, b) => a + b, 0) / ratings.length || 0;
+                const evalScore = avg * 5;
+                const row = table.insertRow();
+                row.innerHTML = `<td>${p.name}</td><td>${p.role || ''}</td><td>${p.personnel || ''}</td><td>${p.father || ''}</td><td>${p.other || ''}</td>
+                    <td>${evalScore.toFixed(2)}</td><td>${avg.toFixed(2)}</td>`;
+            });
+        }
+
+        document.getElementById('search-people').addEventListener('input', loadPeopleTable);
+
+        function sortTable(col) {
+            people.sort((a, b) => {
+                const values = [
+                    a.name, a.role || '', a.personnel || '', a.father || '', a.other || '',
+                    (reportcards[a.name] || criteria.map(() => 0)).reduce((x, y) => x + y, 0) / criteria.length || 0,
+                    (reportcards[b.name] || criteria.map(() => 0)).reduce((x, y) => x + y, 0) / criteria.length || 0
+                ];
+                return values[col] > values[col + 5] ? 1 : -1;
+            });
+            loadPeopleTable();
+        }
+
+        function addCriterion() {
+            const name = document.getElementById('criterion-name').value.trim();
+            if (name) {
+                criteria.push(name);
+                saveData();
+                loadCriteria();
+                Swal.fire({ icon: 'success', title: 'معیار اضافه شد', timer: 1500 });
+            }
+        }
+
+        function loadCriteria() {
+            const table = document.getElementById('criteria-table');
+            table.innerHTML = '<tr><th>معیار</th><th>عملیات</th></tr>';
+            criteria.forEach((c, i) => {
+                const row = table.insertRow();
+                row.innerHTML = `<td>${c}</td><td><button class="small-btn" onclick="editCriterion(${i})">ویرایش <i class="fas fa-edit"></i></button><button class="small-btn" onclick="deleteCriterion(${i})">حذف <i class="fas fa-trash"></i></button></td>`;
+            });
+        }
+
+        function editCriterion(i) {
+            document.getElementById('criterion-name').value = criteria[i];
+            criteria.splice(i, 1);
+            saveData();
+        }
+
+        function deleteCriterion(i) {
+            Swal.fire({
+                title: 'آیا مطمئن هستید؟',
+                text: 'این معیار حذف خواهد شد!',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'بله، حذف کن',
+                cancelButtonText: 'خیر'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    criteria.splice(i, 1);
+                    saveData();
+                    loadCriteria();
+                    Swal.fire({ icon: 'success', title: 'حذف شد', timer: 1500 });
+                }
+            });
+        }
+
+        function loadReportCard() {
+            const select = document.getElementById('person-select-rc');
+            select.innerHTML = '';
+            people.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.name;
+                opt.text = p.name;
+                select.add(opt);
+            });
+            select.onchange = updateRatings;
+            updateRatings();
+        }
+
+        function updateRatings() {
+            const name = document.getElementById('person-select-rc').value;
+            const div = document.getElementById('criteria-ratings');
+            div.innerHTML = '';
+            criteria.forEach((c, i) => {
+                const ratingDiv = document.createElement('div');
+                ratingDiv.innerHTML = `${c}: <div class="star-rating">
+                    ${[5,4,3,2,1].map(n => `<input type="radio" id="star${i}-${n}" name="rate${i}" value="${n}" ${ (reportcards[name] && reportcards[name][i] === n) ? 'checked' : '' }><label for="star${i}-${n}">★</label>`).join('')}
+                </div>`;
+                div.appendChild(ratingDiv);
+            });
+            calculateAverage(name);
+        }
+
+        function saveReportCard() {
+            const name = document.getElementById('person-select-rc').value;
+            reportcards[name] = criteria.map((_, i) => parseInt(document.querySelector(`input[name="rate${i}"]:checked`)?.value || 0));
+            saveData();
+            calculateAverage(name);
+            Swal.fire({ icon: 'success', title: 'کارنامه ذخیره شد', timer: 1500 });
+        }
+
+        function calculateAverage(name) {
+            const ratings = reportcards[name] || [];
+            const avg = ratings.reduce((a, b) => a + b, 0) / ratings.length || 0;
+            document.getElementById('average-rc').innerText = avg.toFixed(2);
+        }
+
+        function loadNotes() {
+            const select = document.getElementById('person-select-notes');
+            select.innerHTML = '';
+            people.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.name;
+                opt.text = p.name;
+                select.add(opt);
+            });
+            select.onchange = updateNotes;
+            updateNotes();
+        }
+
+        function addNote() {
+            const name = document.getElementById('person-select-notes').value;
+            const text = document.getElementById('note-text').value.trim();
+            if (text) {
+                if (!notes[name]) notes[name] = [];
+                notes[name].push(text);
+                saveData();
+                updateNotes();
+                Swal.fire({ icon: 'success', title: 'یادداشت اضافه شد', timer: 1500 });
+            }
+        }
+
+        function updateNotes() {
+            const name = document.getElementById('person-select-notes').value;
+            const ul = document.getElementById('notes-list');
+            ul.innerHTML = '';
+            (notes[name] || []).forEach((n, i) => {
+                const li = document.createElement('li');
+                li.innerHTML = `${n} <button class="small-btn" onclick="editNote('${name}', ${i})">ویرایش <i class="fas fa-edit"></i></button><button class="small-btn" onclick="deleteNote('${name}', ${i})">حذف <i class="fas fa-trash"></i></button>`;
+                ul.appendChild(li);
+            });
+        }
+
+        function editNote(name, i) {
+            document.getElementById('note-text').value = notes[name][i];
+            notes[name].splice(i, 1);
+            saveData();
+        }
+
+        function deleteNote(name, i) {
+            Swal.fire({
+                title: 'آیا مطمئن هستید؟',
+                text: 'این یادداشت حذف خواهد شد!',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'بله، حذف کن',
+                cancelButtonText: 'خیر'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    notes[name].splice(i, 1);
+                    saveData();
+                    updateNotes();
+                    Swal.fire({ icon: 'success', title: 'حذف شد', timer: 1500 });
+                }
+            });
+        }
+
+        function loadFolder() {
+            const table = document.getElementById('folder-table');
+            table.innerHTML = '<tr><th>نام فایل</th><th>توضیحات</th><th>عملیات</th></tr>';
+            folderFiles.forEach((f, i) => {
+                const row = table.insertRow();
+                row.innerHTML = `<td>${f.name}</td><td>${f.desc || ''}</td><td><button class="small-btn" onclick="downloadFile(${f.id}, '${f.name}')">دانلود <i class="fas fa-download"></i></button><button class="small-btn" onclick="printFile(${f.id})">پرینت <i class="fas fa-print"></i></button><button class="small-btn" onclick="deleteFolderFile(${i}, ${f.id})">حذف <i class="fas fa-trash"></i></button></td>`;
+            });
+        }
+
+        function addFolderFile() {
+            const fileInput = document.getElementById('folder-file');
+            const desc = document.getElementById('folder-desc').value.trim();
+            const files = Array.from(fileInput.files);
+            if (files.length === 0) return;
+            files.forEach(file => {
+                if (file.size > 5 * 1024 * 1024) {
+                    Swal.fire({ icon: 'error', title: 'خطا', text: 'حجم فایل باید کمتر از ۵ مگابایت باشد.' });
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = e => {
+                    const transaction = db.transaction(['files'], 'readwrite');
+                    const store = transaction.objectStore('files');
+                    const fileData = { name: file.name, data: e.target.result, desc };
+                    const request = store.add(fileData);
+                    request.onsuccess = () => {
+                        folderFiles.push({ name: file.name, desc, id: request.result });
+                        saveData();
+                        loadFolder();
+                        Swal.fire({ icon: 'success', title: 'فایل اضافه شد', timer: 1500 });
+                    };
+                };
+                reader.readAsDataURL(file);
+            });
+            document.getElementById('folder-preview').style.display = 'none';
+        }
+
+        document.getElementById('folder-file').addEventListener('change', e => {
+            const file = e.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+                const preview = document.getElementById('folder-preview');
+                preview.src = URL.createObjectURL(file);
+                preview.style.display = 'block';
+            }
+        });
+
+        function deleteFolderFile(index, id) {
+            Swal.fire({
+                title: 'آیا مطمئن هستید؟',
+                text: 'این فایل حذف خواهد شد!',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'بله، حذف کن',
+                cancelButtonText: 'خیر'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    const transaction = db.transaction(['files'], 'readwrite');
+                    const store = transaction.objectStore('files');
+                    store.delete(id);
+                    folderFiles.splice(index, 1);
+                    saveData();
+                    loadFolder();
+                    Swal.fire({ icon: 'success', title: 'حذف شد', timer: 1500 });
+                }
+            });
+        }
+
+        function loadFiles() {
+            const select = document.getElementById('person-select-files');
+            select.innerHTML = '';
+            people.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.name;
+                opt.text = p.name;
+                select.add(opt);
+            });
+            select.onchange = updateFiles;
+            updateFiles();
+        }
+
+        function addPersonFile() {
+            const name = document.getElementById('person-select-files').value;
+            const fileInput = document.getElementById('person-file');
+            const desc = document.getElementById('person-desc').value.trim();
+            const files = Array.from(fileInput.files);
+            if (files.length === 0) return;
+            files.forEach(file => {
+                if (file.size > 5 * 1024 * 1024) {
+                    Swal.fire({ icon: 'error', title: 'خطا', text: 'حجم فایل باید کمتر از ۵ مگابایت باشد.' });
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = e => {
+                    const transaction = db.transaction(['files'], 'readwrite');
+                    const store = transaction.objectStore('files');
+                    const fileData = { name: file.name, data: e.target.result, desc, person: name };
+                    const request = store.add(fileData);
+                    request.onsuccess = () => {
+                        if (!personFiles[name]) personFiles[name] = [];
+                        personFiles[name].push({ name: file.name, desc, id: request.result });
+                        saveData();
+                        updateFiles();
+                        Swal.fire({ icon: 'success', title: 'فایل اضافه شد', timer: 1500 });
+                    };
+                };
+                reader.readAsDataURL(file);
+            });
+            document.getElementById('person-preview').style.display = 'none';
+        }
+
+        document.getElementById('person-file').addEventListener('change', e => {
+            const file = e.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+                const preview = document.getElementById('person-preview');
+                preview.src = URL.createObjectURL(file);
+                preview.style.display = 'block';
+            }
+        });
+
+        function updateFiles() {
+            const name = document.getElementById('person-select-files').value;
+            const table = document.getElementById('files-table');
+            table.innerHTML = '<tr><th>نام فایل</th><th>توضیحات</th><th>عملیات</th></tr>';
+            (personFiles[name] || []).forEach((f, i) => {
+                const row = table.insertRow();
+                row.innerHTML = `<td>${f.name}</td><td>${f.desc || ''}</td><td><button class="small-btn" onclick="downloadFile(${f.id}, '${f.name}')">دانلود <i class="fas fa-download"></i></button><button class="small-btn" onclick="printFile(${f.id})">پرینت <i class="fas fa-print"></i></button><button class="small-btn" onclick="deletePersonFile('${name}', ${i}, ${f.id})">حذف <i class="fas fa-trash"></i></button></td>`;
+            });
+        }
+
+        function deletePersonFile(name, index, id) {
+            Swal.fire({
+                title: 'آیا مطمئن هستید؟',
+                text: 'این فایل حذف خواهد شد!',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'بله، حذف کن',
+                cancelButtonText: 'خیر'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    const transaction = db.transaction(['files'], 'readwrite');
+                    const store = transaction.objectStore('files');
+                    store.delete(id);
+                    personFiles[name].splice(index, 1);
+                    saveData();
+                    updateFiles();
+                    Swal.fire({ icon: 'success', title: 'حذف شد', timer: 1500 });
+                }
+            });
+        }
+
+        function downloadFile(id, name) {
+            const transaction = db.transaction(['files'], 'readonly');
+            const store = transaction.objectStore('files');
+            const request = store.get(id);
+            request.onsuccess = () => {
+                const a = document.createElement('a');
+                a.href = request.result.data;
+                a.download = name;
+                a.click();
+            };
+        }
+
+        function printFile(id) {
+            const transaction = db.transaction(['files'], 'readonly');
+            const store = transaction.objectStore('files');
+            const request = store.get(id);
+            request.onsuccess = () => {
+                const img = new Image();
+                img.src = request.result.data;
+                img.onload = () => {
+                    const win = window.open('');
+                    if (!win) {
+                        Swal.fire({ icon: 'error', title: 'خطا', text: 'پنجره پرینت باز نشد.' });
+                        return;
+                    }
+                    win.document.write(img.outerHTML);
+                    win.document.close();
+                    win.print();
+                };
+            };
+        }
+
+        function printAllFiles() {
+            const name = document.getElementById('person-select-files').value;
+            const files = personFiles[name] || [];
+            if (files.length === 0) {
+                Swal.fire({ icon: 'warning', title: 'خطا', text: 'هیچ فایلی برای پرینت وجود ندارد.' });
+                return;
+            }
+            const win = window.open('');
+            if (!win) {
+                Swal.fire({ icon: 'error', title: 'خطا', text: 'پنجره پرینت باز نشد.' });
+                return;
+            }
+            win.document.write('<html><body dir="rtl">');
+            files.forEach(f => {
+                win.document.write(`<h3>${f.name} - ${f.desc || ''}</h3><img src="${f.data}" style="max-width:100%;"><br><br>`);
+            });
+            win.document.write('</body></html>');
+            win.document.close();
+            win.print();
+        }
+
+        function loadChart() {
+            const ctx = document.getElementById('average-chart').getContext('2d');
+            const labels = people.map(p => p.name);
+            const data = people.map(p => {
+                const ratings = reportcards[p.name] || [];
+                return ratings.reduce((a, b) => a + b, 0) / ratings.length || 0;
+            });
+            new Chart(ctx, {
+                type: 'bar',
+                data: { labels, datasets: [{ label: 'معدل', data, backgroundColor: '#ff4081' }] },
+                options: { scales: { y: { beginAtZero: true, max: 5 } } }
+            });
+        }
+
+        function loadSummary() {
+            const select = document.getElementById('person-select-summary');
+            select.innerHTML = '';
+            people.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.name;
+                opt.text = p.name;
+                select.add(opt);
+            });
+            updateSummary();
+        }
+
+        function updateSummary() {
+            const name = document.getElementById('person-select-summary').value;
+            const div = document.getElementById('summary-content');
+            div.innerHTML = '';
+            const p = people.find(person => person.name === name);
+            if (p) {
+                const ratings = reportcards[name] || [];
+                const avg = ratings.reduce((a, b) => a + b, 0) / ratings.length || 0;
+                const summary = `<h3>${p.name} <i class="fas fa-user"></i></h3>
+                    <p>نقش: ${p.role || ''}</p>
+                    <p>کد پرسنلی: ${p.personnel || ''}</p>
+                    <p>نام پدر: ${p.father || ''}</p>
+                    <p>مشخصات دیگر: ${p.other || ''}</p>
+                    <p>معدل: ${avg.toFixed(2)} ⭐</p>
+                    <p>یادداشت‌ها: ${(notes[name] || []).join('<br> ')}</p>
+                    <p>فایل‌ها: ${(personFiles[name] || []).map(f => `${f.name} (${f.desc || ''})`).join('<br> ')}</p>
+                    <p>کارنامه: ${criteria.map((c, i) => `${c}: ${ratings[i] || 0} ⭐`).join('<br> ')}</p>
+                    <p>پاداش و اضافه‌کاری: ${(rewards[name] || []).map(r => `پاداش: ${r.amount}, اضافه‌کاری: ${r.hours}`).join('<br> ')}</p>`;
+                div.innerHTML = summary;
+            }
+        }
+
+        function printSummary() {
+            const name = document.getElementById('person-select-summary').value;
+            const p = people.find(person => person.name === name);
+            if (p) {
+                const win = window.open('');
+                if (!win) {
+                    Swal.fire({ icon: 'error', title: 'خطا', text: 'پنجره پرینت باز نشد.' });
+                    return;
+                }
+                win.document.write(`<html><body dir="rtl"><h1>گزارش ${p.name}</h1>${document.getElementById('summary-content').innerHTML}</body></html>`);
+                win.document.close();
+                win.print();
+            }
+        }
+
+        function loadRewards() {
+            const select = document.getElementById('person-select-rewards');
+            select.innerHTML = '';
+            people.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.name;
+                opt.text = p.name;
+                select.add(opt);
+            });
+            select.onchange = updateRewards;
+            updateRewards();
+        }
+
+        function addReward() {
+            const name = document.getElementById('person-select-rewards').value;
+            const amount = parseFloat(document.getElementById('reward-amount').value) || 0;
+            const hours = parseFloat(document.getElementById('overtime-hours').value) || 0;
+            if (!rewards[name]) rewards[name] = [];
+            rewards[name].push({amount, hours});
+            saveData();
+            updateRewards();
+            Swal.fire({ icon: 'success', title: 'پاداش اضافه شد', timer: 1500 });
+        }
+
+        function updateRewards() {
+            const name = document.getElementById('person-select-rewards').value;
+            const table = document.getElementById('rewards-table');
+            table.innerHTML = '<tr><th>پاداش</th><th>اضافه‌کاری</th><th>عملیات</th></tr>';
+            let total = 0;
+            (rewards[name] || []).forEach((r, i) => {
+                const row = table.insertRow();
+                row.innerHTML = `<td>${r.amount}</td><td>${r.hours}</td><td><button class="small-btn" onclick="deleteReward('${name}', ${i})">حذف <i class="fas fa-trash"></i></button></td>`;
+                total += r.amount + (r.hours * 10);
+            });
+            document.getElementById('total-rewards').innerText = total.toFixed(2);
+            // Rewards Chart
+            const ctx = document.getElementById('rewards-chart').getContext('2d');
+            const data = (rewards[name] || []).map((r, i) => ({ index: i + 1, total: r.amount + r.hours * 10 }));
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => `ورود ${d.index}`),
+                    datasets: [{ label: 'جمع پاداش و اضافه‌کاری', data: data.map(d => d.total), borderColor: '#ff4081' }]
+                },
+                options: { scales: { y: { beginAtZero: true } } }
+            });
+        }
+
+        function deleteReward(name, i) {
+            Swal.fire({
+                title: 'آیا مطمئن هستید؟',
+                text: 'این پاداش حذف خواهد شد!',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'بله، حذف کن',
+                cancelButtonText: 'خیر'
+            }).then(result => {
+                if (result.isConfirmed) {
+                    rewards[name].splice(i, 1);
+                    saveData();
+                    updateRewards();
+                    Swal.fire({ icon: 'success', title: 'حذف شد', timer: 1500 });
+                }
+            });
+        }
+
+        function exportData() {
+            const data = {
+                people, criteria, reportcards, notes, folderFiles, personFiles, rewards
+            };
+            const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'education-app-backup.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            Swal.fire({ icon: 'success', title: 'داده‌ها خروجی گرفته شد', timer: 1500 });
+        }
+
+        function loadAll() {
+            // Lazy Loading
+            setTimeout(() => {
+                loadPeopleDef();
+                loadPeopleTable();
+                loadCriteria();
+                loadReportCard();
+                loadNotes();
+                loadFolder();
+                loadFiles();
+                loadChart();
+                loadSummary();
+                loadRewards();
+            }, 100);
+        }
+
+        if (loggedIn) showDashboard('main-dashboard');
+    </script>
 </body>
 </html>
