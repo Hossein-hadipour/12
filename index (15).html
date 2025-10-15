@@ -1,0 +1,1440 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>فرم تخصصی بازدید آموزشی - مقطع ابتدایی</title>
+  <!-- SweetAlert2 -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <!-- Jalali Moment for Persian Date -->
+  <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jalali-moment@3.3.10/dist/jalali-moment.browser.js"></script>
+  <!-- Chart.js for dashboard charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <!-- Vazir Font from CDN -->
+  <link href="https://v1.fontapi.ir/css/Vazir:300,400,500" rel="stylesheet">
+  <!-- Papa Parse for CSV import -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <style>
+    body {
+      background: linear-gradient(135deg, #1e40af, #3b82f6); /* تغییر رنگ به آبی روشن و تیره */
+      min-height: 100vh;
+      font-family: 'Vazir', sans-serif;
+      font-size: 0.85rem;
+      transition: background-color 0.3s, color 0.3s;
+    }
+    body.dark-mode {
+      background: linear-gradient(135deg, #1e3a8a, #111827);
+      color: #e5e7eb;
+    }
+    .container {
+      max-width: 100%;
+      margin: 0 auto;
+      padding: 1rem;
+    }
+    .card {
+      background: white;
+      border-radius: 1rem;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      transition: transform 0.3s, background-color 0.3s;
+    }
+    .card.dark-mode {
+      background: #374151;
+      color: #e5e7eb;
+    }
+    .card:hover {
+      transform: translateY(-5px);
+    }
+    .gradient-btn {
+      background: linear-gradient(90deg, #3b82f6, #60a5fa);
+      color: white;
+      padding: 0.5rem 1.5rem;
+      border: none;
+      border-radius: 1.5rem;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      position: relative;
+      overflow: hidden;
+    }
+    .gradient-btn:hover {
+      background: linear-gradient(90deg, #2563eb, #3b82f6);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+    }
+    .gradient-btn::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      transition: width 0.6s ease, height 0.6s ease;
+    }
+    .gradient-btn:hover::before {
+      width: 200px;
+      height: 200px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      border: 1px solid #e5e7eb;
+      padding: 0.5rem;
+      text-align: right;
+      font-size: 0.8rem;
+    }
+    th {
+      background: #bfdbfe;
+      color: #1e40af;
+      font-weight: 600;
+    }
+    .dark-mode th {
+      background: #3b82f6;
+      color: #e5e7eb;
+    }
+    textarea, input[type="number"], input[type="text"], input[type="date"], select {
+      width: 100%;
+      font-size: 0.8rem;
+      padding: 0.5rem;
+      border: 1px solid #3b82f6;
+      border-radius: 0.5rem;
+      transition: border-color 0.3s;
+      background: white;
+      color: #1f2937;
+    }
+    .dark-mode textarea, .dark-mode input, .dark-mode select {
+      background: #4b5563;
+      color: #e5e7eb;
+      border-color: #6b7280;
+    }
+    textarea:focus, input:focus, select:focus {
+      border-color: #2563eb;
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+    }
+    textarea {
+      resize: vertical;
+    }
+    .average {
+      font-weight: bold;
+      color: #2563eb;
+    }
+    .dark-mode .average {
+      color: #93c5fd;
+    }
+    .footer {
+      text-align: center;
+      font-size: 0.75rem;
+      color: #fff;
+      margin-top: 2rem;
+      opacity: 0.9;
+    }
+    .dark-mode .footer {
+      color: #d1d5db;
+    }
+    .tooltip {
+      position: relative;
+      display: inline-block;
+    }
+    .tooltip .tooltiptext {
+      visibility: hidden;
+      width: 200px;
+      background-color: #1f2937;
+      color: #fff;
+      text-align: center;
+      border-radius: 6px;
+      padding: 5px;
+      position: absolute;
+      z-index: 1;
+      bottom: 125%;
+      right: 50%;
+      transform: translateX(50%);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .tooltip:hover .tooltiptext {
+      visibility: visible;
+      opacity: 1;
+    }
+    .search-container {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    #chartContainer {
+      max-width: 600px;
+      margin: 2rem auto;
+    }
+    .header {
+      text-align: center;
+      color: #fff;
+      font-size: 1.2rem;
+      margin-bottom: 1rem;
+    }
+    .header small {
+      display: block;
+      font-size: 0.8rem;
+      margin-top: 0.5rem;
+    }
+    @media (max-width: 640px) {
+      .container {
+        padding: 0.75rem;
+      }
+      .card {
+        padding: 1rem;
+        border-radius: 0.75rem;
+      }
+      th, td {
+        padding: 0.3rem;
+        font-size: 0.7rem;
+      }
+      input, textarea, select {
+        font-size: 0.75rem;
+        padding: 0.4rem;
+      }
+      .gradient-btn {
+        padding: 0.6rem 1.2rem;
+        font-size: 0.85rem;
+      }
+      .button-container {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: white;
+        padding: 0.5rem;
+        box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.1);
+        z-index: 10;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        justify-content: center;
+      }
+      .dark-mode .button-container {
+        background: #1f2937;
+      }
+      .gradient-btn {
+        flex: 1 1 calc(50% - 0.5rem); /* دو ستونه در موبایل */
+        max-width: calc(50% - 0.5rem);
+      }
+      .grid-cols-2 {
+        grid-template-columns: 1fr;
+      }
+      .search-container {
+        flex-direction: column;
+      }
+      .header {
+        font-size: 1rem;
+      }
+      .header small {
+        font-size: 0.7rem;
+      }
+    }
+    /* سبک برای پرینت PDF */
+    @media print {
+      body {
+        font-size: 8pt;
+        margin: 0;
+      }
+      .container {
+        padding: 0;
+      }
+      .card {
+        box-shadow: none;
+        margin: 0;
+        page-break-inside: avoid;
+      }
+      table {
+        page-break-inside: auto;
+      }
+      th, td {
+        padding: 4px;
+        border: 0.5px solid #000;
+        font-size: 7pt;
+      }
+      .button-container, #dashboard, #toggleDarkMode, #default_score, button {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    📚 بسم الله الرحمن الرحیم 📚
+  </div>
+
+  <div class="container">
+    <div class="card">
+      <h1 class="text-2xl font-bold text-center text-indigo-900 mb-4 dark-mode:text-indigo-300">فرم تخصصی بازدید آموزشی - مقطع ابتدایی</h1>
+      <p class="text-center text-gray-600 text-sm mb-6 dark-mode:text-gray-400">اداره آموزش و پرورش ناحیه سه شیراز</p>
+
+      <!-- دکمه حالت تاریک -->
+      <div class="flex justify-end mb-4">
+        <button id="toggleDarkMode" class="gradient-btn">تغییر به حالت تاریک</button>
+      </div>
+
+      <!-- فیلتر جستجوی پیشرفته -->
+      <div class="search-container">
+        <div class="w-full">
+          <label class="block text-xs font-medium text-gray-700 dark-mode:text-gray-300">جستجوی فرم ذخیره‌شده</label>
+          <input id="search_form" type="text" placeholder="جستجو بر اساس نام، کد پرسنلی یا تاریخ" class="mt-1">
+        </div>
+        <div class="w-full">
+          <label class="block text-xs font-medium text-gray-700 dark-mode:text-gray-300">انتخاب فرم ذخیره‌شده</label>
+          <select id="load_form_select" class="mt-1 block w-full rounded-md border-gray-300">
+            <option value="">-- هیچ‌کدام --</option>
+          </select>
+        </div>
+        <button onclick="loadForm()" class="gradient-btn px-4 py-1 mt-2">بارگذاری فرم</button>
+      </div>
+
+      <!-- داشبورد تحلیلی -->
+      <div class="card" id="dashboard">
+        <h2 class="text-lg font-semibold text-indigo-800 mb-3 dark-mode:text-indigo-300">داشبورد تحلیلی</h2>
+        <canvas id="scoreChart"></canvas>
+      </div>
+
+      <!-- فرم اطلاعات اولیه -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div class="tooltip">
+          <label class="block text-xs font-medium text-gray-700 dark-mode:text-gray-300">نام مدرسه</label>
+          <input id="school" type="text" required>
+          <span class="tooltiptext">نام کامل مدرسه را وارد کنید</span>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-700 dark-mode:text-gray-300">نام مدیر</label>
+          <input id="manager" type="text" required>
+        </div>
+        <div class="tooltip">
+          <label class="block text-xs font-medium text-gray-700 dark-mode:text-gray-300">کد پرسنلی (۸ رقم)</label>
+          <input id="personnel_code" type="text" maxlength="8" pattern="[0-9]{8}" required>
+          <span class="tooltiptext">کد پرسنلی ۸ رقمی را وارد کنید</span>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-700 dark-mode:text-gray-300">نام بازرس</label>
+          <input id="inspector" type="text" required>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-700 dark-mode:text-gray-300">تاریخ بازدید (میلادی)</label>
+          <input id="date" type="date" required>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-700 dark-mode:text-gray-300">تاریخ بازدید (شمسی)</label>
+          <input id="persian_date" type="text" readonly>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-700 dark-mode:text-gray-300">مدت زمان حضور (دقیقه)</label>
+          <input id="duration" type="number" required>
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-xs font-medium text-gray-700 dark-mode:text-gray-300">توضیحات اضافی</label>
+          <textarea id="extra_comments" rows="3"></textarea>
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-xs font-medium text-gray-700 dark-mode:text-gray-300">نمره پیش‌فرض</label>
+          <select id="default_score" class="mt-1">
+            <option value="">انتخاب</option>
+            <option value="عالی">عالی</option>
+            <option value="خوب">خوب</option>
+            <option value="متوسط">متوسط</option>
+            <option value="نیازمند تلاش">نیازمند تلاش</option>
+          </select>
+          <button onclick="fillDefaultScores()" class="gradient-btn px-4 py-1 mt-2">اعمال نمره پیش‌فرض</button>
+        </div>
+        <div class="md:col-span-2">
+          <label class="block text-xs font-medium text-gray-700 dark-mode:text-gray-300">انتخاب ماه</label>
+          <select id="month_select" class="mt-1" onchange="loadMonthAxes()">
+            <option value="">-- انتخاب ماه --</option>
+            <option value="مهر">مهر</option>
+            <option value="آبان">آبان</option>
+            <option value="آذر">آذر</option>
+            <option value="دی">دی</option>
+            <option value="بهمن">بهمن</option>
+            <option value="اسفند">اسفند</option>
+            <option value="فروردین">فروردین</option>
+            <option value="اردیبهشت">اردیبهشت</option>
+            <option value="خرداد">خرداد</option>
+            <option value="تیر">تیر</option>
+            <option value="مرداد">مرداد</option>
+            <option value="شهریور">شهریور</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- جدول محورها برای ماه انتخابی -->
+      <div class="card overflow-x-auto" id="month_axes">
+        <h2 class="text-lg font-semibold text-indigo-800 mb-3 dark-mode:text-indigo-300" id="month_title">محورهای بازدید ماه انتخاب‌شده</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>ردیف</th>
+              <th>محور ارزیابی</th>
+              <th>توضیح</th>
+              <th>نمره</th>
+            </tr>
+          </thead>
+          <tbody id="axes_table_body">
+            <!-- محورها به صورت دینامیک لود می‌شوند -->
+          </tbody>
+        </table>
+        <p class="average mt-2">میانگین ماه: <span id="month_avg">0</span></p>
+      </div>
+
+      <!-- نمایش میانگین کل 12 ماه -->
+      <p class="average mt-4">میانگین کل 12 ماه: <span id="overall_avg">0</span></p>
+
+      <!-- تحلیل اتوماتیک -->
+      <div class="card">
+        <h2 class="text-lg font-semibold text-indigo-800 mb-3 dark-mode:text-indigo-300">تحلیل اتوماتیک</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>محور تحلیل</th>
+              <th>توضیحات</th>
+            </tr>
+          </thead>
+          <tbody id="smart_analysis">
+            <tr><td>تحلیل هوش</td><td>-</td></tr>
+            <tr><td>تحلیل راهبردی</td><td>-</td></tr>
+            <tr><td>تحلیل روانشناسی</td><td>-</td></tr>
+            <tr><td>تحلیل کمکی</td><td>-</td></tr>
+            <tr><td>تحلیل عملکرد کلی</td><td>-</td></tr>
+            <tr><td>تحلیل نقاط قوت و ضعف</td><td>-</td></tr>
+            <tr><td>پیشنهادات</td><td>-</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="button-container flex justify-center space-x-2 mt-6 md:space-x-4">
+        <button onclick="startTour()" class="gradient-btn">راهنمای تعاملی</button>
+        <button onclick="saveForm()" class="gradient-btn">ذخیره فرم</button>
+        <button onclick="previewForm()" class="gradient-btn">پیش‌نمایش گزارش</button>
+        <button onclick="printForm()" class="gradient-btn">چاپ گزارش (PDF)</button>
+        <button onclick="exportToJSON()" class="gradient-btn">صادرات به JSON</button>
+        <button onclick="importJSON()" class="gradient-btn">ورود از JSON</button>
+        <button onclick="exportToCSV()" class="gradient-btn">صادرات به اکسل</button>
+        <button onclick="importCSV()" class="gradient-btn">ورود از اکسل</button>
+        <button onclick="clearForm()" class="gradient-btn">پاک کردن فرم</button>
+        <button onclick="clearAllData()" class="gradient-btn">پاک کردن تمام اطلاعات</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    طراحی‌شده برای اداره آموزش و پرورش
+  </div>
+
+  <script>
+    // داده‌های محورها برای هر ماه
+    const monthAxes = {
+      'مهر': [
+        'تدوین برنامه سالانه مدرسه با تأکید بر ارزشیابی توصیفی.',
+        'نظارت بر تشکیل پوشه‌های کار دانش‌آموزان توسط معلمان.',
+        'برگزاری جلسه توجیهی با معلمان برای تبیین آیین‌نامه ارزشیابی کیفی.',
+        'ایجاد شورای معلمان برای هماهنگی برنامه‌های آموزشی.',
+        'برقراری ارتباط اولیه با والدین (جلسه عمومی).',
+        'تخصیص منابع (ابزارهای کیفی، نرم‌افزارهای مدیریتی).',
+        'نظارت بر اجرای ارزیابی‌های تشخیصی معلمان.',
+        'طراحی برنامه‌های پرورشی برای تقویت محیط عاطفی (قره‌داغی: "مدرسه، خانه اعتماد").',
+        'مستندسازی فعالیت‌های نظارتی در دفتر مدیریت.',
+        'ارزیابی اولیه عملکرد معلمان در ارزشیابی کیفی.',
+        'هماهنگی با اداره آموزش برای دستورالعمل‌ها.',
+        'خودارزیابی مدیر از برنامه‌ریزی اولیه.'
+      ],
+      'آبان': [
+        'بررسی گزارش‌های اولیه معلمان (فرم الف).',
+        'نظارت بر ثبت بازخوردهای توصیفی در پوشه‌های کار.',
+        'برگزاری جلسه شورای معلمان برای تحلیل پیشرفت.',
+        'هماهنگی با والدین برای مشارکت در یادگیری.',
+        'نظارت بر اجرای فعالیت‌های گروهی تربیتی.',
+        'بررسی ابزارهای کیفی معلمان (چک‌لیست، مشاهده).',
+        'ادغام فعالیت‌های فرهنگی (مثل هفته کتاب) با اهداف آموزشی.',
+        'مستندسازی شواهد نظارتی در گزارش‌های ماهانه.',
+        'حمایت از معلمان برای به‌روزرسانی روش‌های تدریس.',
+        'ارزیابی اثربخشی جلسات والدین.',
+        'هماهنگی با معاونان برای برنامه‌های پرورشی.',
+        'خودارزیابی مدیر از تعامل با ذی‌نفعان.'
+      ],
+      'آذر': [
+        'بررسی گزارش‌های میان‌دوره‌ای معلمان (پوشه کار).',
+        'نظارت بر ارائه بازخوردهای توصیفی عملی به دانش‌آموزان.',
+        'برگزاری جلسه شورای مدرسه برای تحلیل داده‌های پاییز.',
+        'هماهنگی جلسات والدین برای گزارش‌های توصیفی.',
+        'نظارت بر فعالیت‌های تربیتی (پروژه‌های گروهی).',
+        'ارزیابی ابزارهای ارزشیابی کیفی معلمان.',
+        'مستندسازی مشاهدات نظارتی در دفتر مدیریت.',
+        'حمایت از معلمان نیازمند تلاش با کارگاه‌های آموزشی سانوپ.',
+        'ادغام فعالیت‌های فرهنگی با اهداف ارزشیابی.',
+        'بررسی اثربخشی برنامه‌های پرورشی.',
+        'هماهنگی با اداره برای گزارش‌های میانی.',
+        'خودارزیابی مدیر از نظارت پاییزی.'
+      ],
+      'دی': [
+        'بررسی فرم‌های الف نوبت اول معلمان.',
+        'نظارت بر کیفیت بازخوردهای توصیفی (مشخص، عملی).',
+        'برگزاری جلسه شورای معلمان برای تحلیل گزارش‌ها.',
+        'هماهنگی با والدین برای ارائه گزارش نوبت اول.',
+        'نظارت بر فعالیت‌های جبرانی برای دانش‌آموزان نیازمند تلاش.',
+        'بررسی مستندات کلاسی (پوشه کار، چک‌لیست).',
+        'حمایت از معلمان برای کارگاه‌های ارزشیابی کیفی قره‌داغی.',
+        'مستندسازی گزارش‌های نظارتی نوبت اول.',
+        'ادغام فعالیت‌های زمستانی با اهداف تربیتی.',
+        'ارزیابی اثربخشی تعاملات با ذی‌نفعان.',
+        'هماهنگی با معاونان برای برنامه‌های جبرانی.',
+        'خودارزیابی مدیر از مدیریت نوبت اول.'
+      ],
+      'بهمن': [
+        'نظارت بر اجرای بازخوردهای نوبت اول.',
+        'بررسی آزمون‌های عملکردی توصیفی معلمان.',
+        'برگزاری جلسه شورای مدرسه برای تحلیل پیشرفت.',
+        'نظارت بر ثبت داده‌ها در دفتر مدیریت کلاس.',
+        'هماهنگی با والدین برای مشارکت مستمر.',
+        'حمایت از معلمان با ابزارهای الکترونیکی (سیدا).',
+        'مستندسازی شواهد نظارتی در گزارش‌های ماهانه.',
+        'برنامه‌ریزی فعالیت‌های خانگی برای تعطیلات.',
+        'ارزیابی اثربخشی فعالیت‌های تربیتی گروهی.',
+        'هماهنگی با اداره برای گزارش‌های نظارتی.',
+        'بررسی عملکرد معلمان نیازمند تلاش.',
+        'خودارزیابی مدیر از پشتیبانی آموزشی.'
+      ],
+      'اسفند': [
+        'بررسی جمع‌بندی نیم‌سال اول معلمان.',
+        'نظارت بر ارائه بازخوردهای توصیفی پیش از تعطیلات.',
+        'هماهنگی برای تکالیف نوروزی توصیفی (قره‌داغی: "پیوستگی در تعطیلات").',
+        'برگزاری جلسه نهایی با والدین.',
+        'نظارت بر مستندات کلاسی (پوشه کار، چک‌لیست).',
+        'ادغام جشن‌های اسفند با اهداف تربیتی.',
+        'حمایت از معلمان برای به‌روزرسانی ابزارها.',
+        'مستندسازی گزارش‌های نظارتی پایانی نیم‌سال.',
+        'ارزیابی اثربخشی برنامه‌های پرورشی.',
+        'هماهنگی با معاونان برای برنامه‌های نوروزی.',
+        'بررسی عملکرد معلمان در ارزشیابی کیفی.',
+        'خودارزیابی مدیر از برنامه‌ریزی تعطیلات.'
+      ],
+      'فروردین': [
+        'نظارت بر ارزیابی‌های سریع پس از تعطیلات.',
+        'بررسی فعالیت‌های جبرانی معلمان برای افت یادگیری.',
+        'برگزاری جلسه شورای معلمان برای تحلیل افت.',
+        'هماهنگی با والدین برای گزارش تأثیر تعطیلات.',
+        'نظارت بر اجرای فعالیت‌های تیمی کلاسی.',
+        'بررسی مستندات کلاسی (پوشه کار، چک‌لیست).',
+        'حمایت از معلمان برای برنامه‌های پروژه‌محور.',
+        'مستندسازی مشاهدات نظارتی پس از تعطیلات.',
+        'ارزیابی اثربخشی بازخوردهای توصیفی.',
+        'هماهنگی با اداره برای برنامه‌های جبرانی.',
+        'بررسی عملکرد معلمان در جبران افت.',
+        'خودارزیابی مدیر از مدیریت نیم‌سال دوم.'
+      ],
+      'اردیبهشت': [
+        'بررسی فرم‌های الف نوبت دوم معلمان (۷-۱۴ اردیبهشت).',
+        'نظارت بر کیفیت بازخوردهای توصیفی پایانی.',
+        'برگزاری جلسه شورای مدرسه برای جمع‌بندی سال.',
+        'هماهنگی جلسات انتقال به پایه بعدی با والدین.',
+        'نظارت بر مستندات کلاسی (پوشه کار، چک‌لیست).',
+        'حمایت از معلمان برای پیشنهادهای تابستانی.',
+        'مستندسازی گزارش‌های نظارتی نوبت دوم.',
+        'ارزیابی اثربخشی فعالیت‌های تربیتی سال.',
+        'هماهنگی با معاونان برای گزارش‌های پایانی.',
+        'بررسی عملکرد معلمان در ارزشیابی پایانی.',
+        'ادغام فعالیت‌های خلاق با اهداف آموزشی.',
+        'خودارزیابی مدیر از عملکرد سالانه.'
+      ],
+      'خرداد': [
+        'بررسی و تأیید فرم‌های الف نوبت دوم.',
+        'نظارت بر صدور گزارش‌های توصیفی به والدین.',
+        'برگزاری جلسات شورای مدرسه برای تحلیل عملکرد سالانه.',
+        'هماهنگی انتقال دانش‌آموزان به پایه‌های بالاتر.',
+        'تشکیل ستاد ثبت‌نام پس از ابلاغ اواسط خرداد.',
+        'تهیه گزارش عملکرد سالانه برای اداره آموزش و پرورش.',
+        'حمایت از معلمان برای تکمیل پرونده‌های آموزشی.',
+        'مستندسازی شواهد ارزشیابی کیفی در سامانه‌ها.',
+        'ارزیابی اثربخشی برنامه‌های تربیتی سالانه.',
+        'هماهنگی با والدین برای جلسات پایانی و بازخورد.',
+        'خودارزیابی مدیر از اجرای ارزشیابی کیفی.',
+        'برنامه‌ریزی برای ثبت‌نام و تعمیرات تابستانی.'
+      ],
+      'تیر': [
+        'نظارت بر تعمیرات فیزیکی مدرسه (نظافت، ایمنی تجهیزات).',
+        'آغاز فرآیند ثبت‌نام مطابق دستورالعمل (از ۱ تیر، با سنجش سلامت).',
+        'بررسی درخواست‌های تغییر مدیران (کارگروه انتخاب).',
+        'برگزاری جلسات ستاد ثبت‌نام (دوشنبه/چهارشنبه).',
+        'هماهنگی با اداره برای تخصیص بودجه تعمیرات و ثبت‌نام.',
+        'مستندسازی گزارش‌های نظارتی تابستانی در سامانه‌ها.',
+        'حمایت از معلمان در دوره‌های ضمن‌خدمت تابستانی.',
+        'ارزیابی ابزارهای ارزشیابی برای سال تحصیلی جدید.',
+        'ادغام فعالیت‌های تابستانی با اهداف تربیتی.',
+        'تعامل با والدین برای اطلاع‌رسانی فرآیند ثبت‌نام.',
+        'خودارزیابی مدیر از مدیریت تابستانی.',
+        'تهیه پیش‌نویس برنامه سال تحصیلی جدید.'
+      ],
+      'مرداد': [
+        'نظارت بر تکمیل ثبت‌نام تا ۱۵ مرداد (مطابق دستورالعمل).',
+        'بررسی و تأیید اسناد ثبت‌نام و نقل‌وانتقال دانش‌آموزان.',
+        'برگزاری جلسات ستاد ثبت‌نام (دوشنبه/چهارشنبه).',
+        'هماهنگی با اداره برای ابلاغ مدیران جدید (تا پایان مرداد).',
+        'نظارت بر تعمیرات پیشرفته (تجهیزات آموزشی، فضای سبز).',
+        'مستندسازی گزارش‌های ثبت‌نام در سامانه سیدا.',
+        'حمایت از دوره‌های آموزشی مدیران (الگوی مدرسه تراز).',
+        'به‌روزرسانی ابزارهای ارزشیابی کیفی برای سال جدید.',
+        'برنامه‌ریزی فعالیت‌های پرورشی تابستانی.',
+        'تعامل با انجمن اولیا برای مشارکت در ثبت‌نام.',
+        'خودارزیابی مدیر از مدیریت اداری تابستانی.',
+        'تهیه بودجه پیشنهادی برای سال تحصیلی جدید.'
+      ],
+      'شهریور': [
+        'بررسی نتایج انتخاب مدیران و ارزشیابی کادر (تا ۱۵ شهریور).',
+        'نظارت بر آماده‌سازی فیزیکی مدرسه برای بازگشایی.',
+        'برگزاری جلسه معارفه مدیران جدید با شورای معلمان.',
+        'هماهنگی ثبت‌نام نهایی دانش‌آموزان.',
+        'نظارت بر تشکیل شوراهای مدرسه برای مهر.',
+        'مستندسازی گزارش‌های تابستانی و ارسال به اداره.',
+        'حمایت از معلمان در آموزش سازگاری (۱-۴ شهریور).',
+        'ارزیابی اثربخشی تعمیرات و منابع آموزشی.',
+        'ادغام برنامه‌های فرهنگی (مراسم بازگشایی) با اهداف تربیتی.',
+        'تعامل با والدین برای جلسه توجیهی پیش از مهر.',
+        'خودارزیابی مدیر از آماده‌سازی سال جدید و ارزشیابی کادر.',
+        'ابلاغ برنامه هفتگی و مقررات انضباطی برای مهر.'
+      ]
+    };
+
+    // نمره‌های عددی برای محاسبه
+    const scoreValues = {
+      'عالی': 4,
+      'خوب': 3,
+      'متوسط': 2,
+      'نیازمند تلاش': 1
+    };
+
+    // پیام خوش‌آمدگویی و تبدیل تاریخ
+    window.onload = function() {
+      Swal.fire({
+        icon: 'info',
+        title: 'خوش‌آمدگویی',
+        html: 'لطفاً فرم را با دقت پر کنید. برای ذخیره داده‌ها از دکمه "ذخیره فرم" استفاده کنید.<br>برای راهنمایی، از دکمه "راهنمای تعاملی" استفاده کنید.',
+        confirmButtonText: 'باشه'
+      });
+
+      // تبدیل تاریخ میلادی به شمسی
+      document.getElementById('date').addEventListener('change', function() {
+        const date = this.value;
+        if (date) {
+          const persianDate = moment(date).locale('fa').format('YYYY/MM/DD');
+          document.getElementById('persian_date').value = persianDate;
+        } else {
+          document.getElementById('persian_date').value = '';
+        }
+      });
+
+      // بارگذاری لیست فرم‌های ذخیره‌شده
+      loadFormList();
+
+      // جستجوی پیشرفته
+      document.getElementById('search_form').addEventListener('input', filterForms);
+
+      // اعتبارسنجی ورودی‌ها
+      document.getElementById('personnel_code').addEventListener('input', function() {
+        this.value = this.value.replace(/[^0-9]/g, '');
+        if (this.value.length > 8) {
+          this.value = this.value.slice(0, 8);
+          Swal.fire({
+            icon: 'warning',
+            title: 'هشدار',
+            text: 'کد پرسنلی باید ۸ رقم باشد.',
+          });
+        }
+      });
+
+      // نمایش نمودار اولیه
+      updateChart();
+    };
+
+    // تابع بارگذاری لیست فرم‌ها
+    function loadFormList() {
+      const select = document.getElementById('load_form_select');
+      select.innerHTML = '<option value="">-- هیچ‌کدام --</option>';
+      const personnelCodes = {};
+      Object.keys(localStorage).filter(key => key.startsWith('inspection_form_')).forEach(key => {
+        const formData = JSON.parse(localStorage.getItem(key));
+        let displayName = `${formData.manager} - ${formData.persian_date} - ${formData.personnel_code}`;
+        const code = formData.personnel_code;
+        if (personnelCodes[code]) {
+          personnelCodes[code]++;
+          displayName += ` (${personnelCodes[code]})`;
+        } else {
+          personnelCodes[code] = 1;
+        }
+        const option = document.createElement('option');
+        option.value = key;
+        option.textContent = displayName;
+        select.appendChild(option);
+      });
+    }
+
+    // تابع جستجوی پیشرفته
+    function filterForms() {
+      const searchValue = document.getElementById('search_form').value.toLowerCase();
+      const select = document.getElementById('load_form_select');
+      select.innerHTML = '<option value="">-- هیچ‌کدام --</option>';
+      const personnelCodes = {};
+      Object.keys(localStorage).filter(key => key.startsWith('inspection_form_')).forEach(key => {
+        const formData = JSON.parse(localStorage.getItem(key));
+        const searchString = `${formData.manager} ${formData.personnel_code} ${formData.persian_date}`.toLowerCase();
+        if (searchString.includes(searchValue)) {
+          let displayName = `${formData.manager} - ${formData.persian_date} - ${formData.personnel_code}`;
+          const code = formData.personnel_code;
+          if (personnelCodes[code]) {
+            personnelCodes[code]++;
+            displayName += ` (${personnelCodes[code]})`;
+          } else {
+            personnelCodes[code] = 1;
+          }
+          const option = document.createElement('option');
+          option.value = key;
+          option.textContent = displayName;
+          select.appendChild(option);
+        }
+      });
+    }
+
+    // تابع تغییر حالت تاریک
+    document.getElementById('toggleDarkMode').addEventListener('click', function() {
+      document.body.classList.toggle('dark-mode');
+      document.querySelectorAll('.card, .average, .footer, th, td, label').forEach(el => el.classList.toggle('dark-mode'));
+      this.textContent = document.body.classList.contains('dark-mode') ? 'تغییر به حالت روشن' : 'تغییر به حالت تاریک';
+    });
+
+    // تابع لود محورهای ماه
+    function loadMonthAxes() {
+      const month = document.getElementById('month_select').value;
+      if (!month) {
+        document.getElementById('month_title').textContent = 'محورهای بازدید ماه انتخاب‌شده';
+        document.getElementById('axes_table_body').innerHTML = '';
+        document.getElementById('month_avg').textContent = '0';
+        return;
+      }
+
+      document.getElementById('month_title').textContent = `محورهای بازدید ماه ${month}`;
+      const axes = monthAxes[month] || [];
+      let tableBody = '';
+      axes.forEach((axis, index) => {
+        tableBody += `
+          <tr>
+            <td>${index + 1}</td>
+            <td>${axis}</td>
+            <td><textarea rows="2" class="month_comment"></textarea></td>
+            <td>
+              <select class="month_score" onchange="calculateMonthAvg()">
+                <option value="">انتخاب</option>
+                <option value="عالی">عالی</option>
+                <option value="خوب">خوب</option>
+                <option value="متوسط">متوسط</option>
+                <option value="نیازمند تلاش">نیازمند تلاش</option>
+              </select>
+            </td>
+          </tr>
+        `;
+      });
+      document.getElementById('axes_table_body').innerHTML = tableBody;
+
+      // لود داده‌های قبلی اگر وجود داشته باشد
+      const formData = getCurrentFormData();
+      if (formData && formData.months[month]) {
+        const scores = formData.months[month].scores;
+        const comments = formData.months[month].comments;
+        document.querySelectorAll('.month_score').forEach((select, index) => {
+          select.value = scores[index] || '';
+        });
+        document.querySelectorAll('.month_comment').forEach((textarea, index) => {
+          textarea.value = comments[index] || '';
+        });
+        calculateMonthAvg();
+      }
+    }
+
+    // تابع محاسبه میانگین ماه
+    function calculateMonthAvg() {
+      const scores = Array.from(document.querySelectorAll('.month_score')).map(select => scoreValues[select.value] || 0);
+      const validScores = scores.filter(s => s > 0);
+      const avg = validScores.length > 0 ? (validScores.reduce((a, b) => a + b, 0) / validScores.length).toFixed(2) : 0;
+      document.getElementById('month_avg').textContent = avg;
+      calculateOverallAvg();
+    }
+
+    // تابع محاسبه میانگین کل 12 ماه
+    function calculateOverallAvg() {
+      const formData = getCurrentFormData();
+      if (!formData) return;
+      const months = Object.keys(formData.months);
+      let totalSum = 0;
+      let totalCount = 0;
+      months.forEach(month => {
+        const scores = formData.months[month].scores.map(s => scoreValues[s] || 0);
+        const validScores = scores.filter(s => s > 0);
+        if (validScores.length > 0) {
+          totalSum += validScores.reduce((a, b) => a + b, 0);
+          totalCount += validScores.length;
+        }
+      });
+      const overallAvg = totalCount > 0 ? (totalSum / totalCount).toFixed(2) : 0;
+      document.getElementById('overall_avg').textContent = overallAvg;
+      generateSmartAnalysis(overallAvg);
+      updateChart(formData);
+    }
+
+    // تابع اعمال نمره پیش‌فرض به محورهای ماه
+    function fillDefaultScores() {
+      const defaultScore = document.getElementById('default_score').value;
+      if (!defaultScore) {
+        Swal.fire({
+          icon: 'error',
+          title: 'خطا',
+          text: 'نمره پیش‌فرض را انتخاب کنید.',
+        });
+        return;
+      }
+
+      document.querySelectorAll('.month_score').forEach(select => {
+        select.value = defaultScore;
+      });
+
+      const defaultComment = {
+        'عالی': 'عالی، بدون نقص.',
+        'خوب': 'خوب، عملکرد مناسب.',
+        'متوسط': 'متوسط، نیاز به بهبود.',
+        'نیازمند تلاش': 'نیازمند تلاش بیشتر.'
+      }[defaultScore];
+      document.querySelectorAll('.month_comment').forEach(textarea => {
+        textarea.value = defaultComment;
+      });
+
+      calculateMonthAvg();
+      Swal.fire({
+        icon: 'success',
+        title: 'اعمال شد',
+        text: 'نمره پیش‌فرض و توضیحات اعمال شد.',
+      });
+    }
+
+    // تابع ذخیره فرم
+    function saveForm() {
+      const personnelCode = document.getElementById('personnel_code').value;
+      if (!/^\d{8}$/.test(personnelCode)) {
+        Swal.fire({
+          icon: 'error',
+          title: 'خطا',
+          text: 'کد پرسنلی باید ۸ رقم عددی باشد.',
+        });
+        return;
+      }
+
+      const month = document.getElementById('month_select').value;
+      if (!month) {
+        Swal.fire({
+          icon: 'error',
+          title: 'خطا',
+          text: 'ماه را انتخاب کنید.',
+        });
+        return;
+      }
+
+      const formData = getCurrentFormData() || {
+        school: document.getElementById('school').value,
+        manager: document.getElementById('manager').value,
+        personnel_code: personnelCode,
+        inspector: document.getElementById('inspector').value,
+        date: document.getElementById('date').value,
+        persian_date: document.getElementById('persian_date').value,
+        duration: document.getElementById('duration').value,
+        extra_comments: document.getElementById('extra_comments').value,
+        months: {}
+      };
+
+      formData.months[month] = {
+        scores: Array.from(document.querySelectorAll('.month_score')).map(select => select.value),
+        comments: Array.from(document.querySelectorAll('.month_comment')).map(textarea => textarea.value)
+      };
+
+      const key = `inspection_form_${formData.manager}_${formData.date}_${personnelCode}`;
+      localStorage.setItem(key, JSON.stringify(formData));
+      loadFormList();
+      calculateOverallAvg();
+      Swal.fire({
+        icon: 'success',
+        title: 'ذخیره شد',
+        text: `داده‌های ماه ${month} با موفقیت ذخیره شد.`,
+      });
+    }
+
+    // تابع دریافت داده فرم فعلی
+    function getCurrentFormData() {
+      const select = document.getElementById('load_form_select');
+      const key = select.value;
+      if (!key) return null;
+      return JSON.parse(localStorage.getItem(key));
+    }
+
+    // تابع بارگذاری فرم انتخاب‌شده
+    function loadForm() {
+      const select = document.getElementById('load_form_select');
+      const key = select.value;
+      if (!key) return;
+
+      const formData = JSON.parse(localStorage.getItem(key));
+      if (formData) {
+        document.getElementById('school').value = formData.school || '';
+        document.getElementById('manager').value = formData.manager || '';
+        document.getElementById('personnel_code').value = formData.personnel_code || '';
+        document.getElementById('inspector').value = formData.inspector || '';
+        document.getElementById('date').value = formData.date || '';
+        document.getElementById('persian_date').value = formData.persian_date || '';
+        document.getElementById('duration').value = formData.duration || '';
+        document.getElementById('extra_comments').value = formData.extra_comments || '';
+        document.getElementById('month_select').value = '';
+        document.getElementById('axes_table_body').innerHTML = '';
+        document.getElementById('month_avg').textContent = '0';
+        calculateOverallAvg();
+        Swal.fire({
+          icon: 'success',
+          title: 'بارگذاری شد',
+          text: 'فرم انتخاب‌شده بارگذاری شد. حالا ماه را انتخاب کنید.',
+        });
+      }
+    }
+
+    // تابع تولید تحلیل هوشمند
+    function generateSmartAnalysis(avg) {
+      let analysis = [];
+      if (avg >= 3.5) {
+        analysis = [
+          ['تحلیل هوش', 'سطح هوش مدیریتی بالا با قابلیت برنامه‌ریزی استراتژیک.'],
+          ['تحلیل راهبردی', 'رویکردهای راهبردی عالی برای توسعه مدرسه.'],
+          ['تحلیل روانشناسی', 'مدیریت عاطفی قوی، با تمرکز روی تیم‌سازی.'],
+          ['تحلیل کمکی', 'حمایت‌های کمکی از منابع خارجی موثر.'],
+          ['تحلیل عملکرد کلی', 'عملکرد کلی عالی با نتایج برجسته.'],
+          ['تحلیل نقاط قوت و ضعف', 'قوت: نوآوری. ضعف: ممکن است نیاز به دیجیتال‌سازی بیشتر.'],
+          ['پیشنهادات', 'ادامه روند با تمرکز روی فناوری‌های جدید.']
+        ];
+      } else if (avg >= 2.5) {
+        analysis = [
+          ['تحلیل هوش', 'هوش متوسط با پتانسیل رشد در تصمیم‌گیری.'],
+          ['تحلیل راهبردی', 'راهبردهای خوب اما نیاز به بهینه‌سازی.'],
+          ['تحلیل روانشناسی', 'مدیریت روانشناختی متعادل، نیاز به مدیریت استرس.'],
+          ['تحلیل کمکی', 'حمایت‌های کمکی متوسط، نیاز به منابع بیشتر.'],
+          ['تحلیل عملکرد کلی', 'عملکرد خوب با پتانسیل بهبود.'],
+          ['تحلیل نقاط قوت و ضعف', 'قوت: تعامل. ضعف: کمبود تنوع.'],
+          ['پیشنهادات', 'دوره‌های آموزشی و به‌روزرسانی ابزارها.']
+        ];
+      } else if (avg >= 1.5) {
+        analysis = [
+          ['تحلیل هوش', 'هوش عملی متوسط، نیاز به تقویت.'],
+          ['تحلیل راهبردی', 'راهبردهای پایه‌ای، نیاز به توسعه.'],
+          ['تحلیل روانشناسی', 'چالش‌های عاطفی، نیاز به حمایت.'],
+          ['تحلیل کمکی', 'حمایت‌های کمکی ناکافی.'],
+          ['تحلیل عملکرد کلی', 'عملکرد قابل قبول اما ضعیف.'],
+          ['تحلیل نقاط قوت و ضعف', 'قوت: تلاش. ضعف: مدیریت زمان.'],
+          ['پیشنهادات', 'برنامه مربیگری و نظارت مستقیم.']
+        ];
+      } else {
+        analysis = [
+          ['تحلیل هوش', 'نیاز به توسعه هوش مدیریتی.'],
+          ['تحلیل راهبردی', 'راهبردها نیازمند بازسازی.'],
+          ['تحلیل روانشناسی', 'چالش‌های روانشناختی جدی.'],
+          ['تحلیل کمکی', 'نیاز به حمایت فوری.'],
+          ['تحلیل عملکرد کلی', 'عملکرد ضعیف.'],
+          ['تحلیل نقاط قوت و ضعف', 'قوت: تمایل به بهبود. ضعف: همه بخش‌ها.'],
+          ['پیشنهادات', 'دوره‌های فشرده و تغییرات اساسی.']
+        ];
+      }
+
+      const analysisTable = analysis.map(row => `
+        <tr>
+          <td>${row[0]}</td>
+          <td>${row[1]}</td>
+        </tr>
+      `).join('');
+      document.getElementById('smart_analysis').innerHTML = analysisTable;
+    }
+
+    // تابع به‌روزرسانی نمودار
+    let scoreChart;
+    function updateChart(formData = null) {
+      const ctx = document.getElementById('scoreChart').getContext('2d');
+      const months = Object.keys(monthAxes);
+      const data = months.map(month => {
+        if (formData && formData.months[month]) {
+          const scores = formData.months[month].scores.map(s => scoreValues[s] || 0);
+          const validScores = scores.filter(s => s > 0);
+          return validScores.length > 0 ? validScores.reduce((a, b) => a + b, 0) / validScores.length : 0;
+        }
+        return 0;
+      });
+
+      if (scoreChart) scoreChart.destroy();
+      scoreChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: months,
+          datasets: [{
+            label: 'میانگین نمرات ماهانه',
+            data: data,
+            backgroundColor: 'rgba(59, 130, 246, 0.6)',
+            borderColor: '#3b82f6',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          scales: {
+            y: { beginAtZero: true, max: 4 }
+          }
+        }
+      });
+    }
+
+    // تابع راهنمای تعاملی
+    function startTour() {
+      Swal.fire({
+        title: 'راهنمای تعاملی',
+        html: `
+          <p>1. <b>اطلاعات اولیه:</b> فیلدهای اجباری را پر کنید.</p>
+          <p>2. <b>انتخاب ماه:</b> ماه را انتخاب کنید و محورها را نمره‌دهی کنید.</p>
+          <p>3. <b>نمره پیش‌فرض:</b> برای پر کردن سریع استفاده کنید.</p>
+          <p>4. <b>ذخیره:</b> هر ماه را جداگانه ذخیره کنید.</p>
+          <p>5. <b>میانگین:</b> میانگین ماه و کل سال نمایش داده می‌شود.</p>
+          <p>6. <b>تحلیل:</b> تحلیل اتوماتیک بر اساس میانگین تولید می‌شود.</p>
+          <p>7. <b>صادرات/ورود:</b> از JSON و اکسل استفاده کنید.</p>
+        `,
+        confirmButtonText: 'باشه'
+      });
+    }
+
+    // تابع پاک کردن فرم
+    function clearForm() {
+      Swal.fire({
+        title: 'آیا مطمئن هستید؟',
+        text: 'داده‌های فرم فعلی پاک خواهد شد.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'بله',
+        cancelButtonText: 'خیر'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          document.querySelectorAll('input, textarea, select:not(#month_select)').forEach(element => element.value = '');
+          document.getElementById('axes_table_body').innerHTML = '';
+          document.getElementById('month_avg').textContent = '0';
+          document.getElementById('overall_avg').textContent = '0';
+          document.getElementById('smart_analysis').innerHTML = `
+            <tr><td>تحلیل هوش</td><td>-</td></tr>
+            <tr><td>تحلیل راهبردی</td><td>-</td></tr>
+            <tr><td>تحلیل روانشناسی</td><td>-</td></tr>
+            <tr><td>تحلیل کمکی</td><td>-</td></tr>
+            <tr><td>تحلیل عملکرد کلی</td><td>-</td></tr>
+            <tr><td>تحلیل نقاط قوت و ضعف</td><td>-</td></tr>
+            <tr><td>پیشنهادات</td><td>-</td></tr>
+          `;
+          const select = document.getElementById('load_form_select');
+          localStorage.removeItem(select.value);
+          select.value = '';
+          loadFormList();
+          updateChart();
+          Swal.fire('پاک شد!', 'فرم پاک شد.', 'success');
+        }
+      });
+    }
+
+    // تابع پیش‌نمایش گزارش
+    function previewForm() {
+      const formData = getCurrentFormData();
+      if (!formData) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'هشدار',
+          text: 'فرمی بارگذاری نشده است.',
+        });
+        return;
+      }
+
+      const content = generatePrintContent(formData);
+      const win = window.open('', '_blank');
+      win.document.write(content);
+      win.document.close();
+    }
+
+    // تابع چاپ گزارش
+    function printForm() {
+      const formData = getCurrentFormData();
+      if (!formData) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'هشدار',
+          text: 'فرمی بارگذاری نشده است.',
+        });
+        return;
+      }
+
+      const content = generatePrintContent(formData);
+      const win = window.open('', '_blank');
+      win.document.write(content);
+      win.document.close();
+      win.print();
+    }
+
+    // تابع تولید محتوای چاپ
+    function generatePrintContent(formData) {
+      let content = `
+        <html dir="rtl">
+        <head>
+          <meta charset="UTF-8">
+          <link href="https://v1.fontapi.ir/css/Vazir:300,400,500" rel="stylesheet">
+          <style>
+            body { font-family: Vazir, sans-serif; font-size: 8pt; margin: 10px; }
+            table { width: 100%; border-collapse: collapse; }
+            th, td { border: 1px solid #000; padding: 4px; font-size: 7pt; text-align: center; }
+            th { background: #bfdbfe; color: #1e40af; }
+            .section { margin-bottom: 10px; page-break-inside: avoid; }
+          </style>
+        </head>
+        <body>
+          <h3>گزارش بازدید - ${formData.manager}</h3>
+          <div class="section">
+            <h4>اطلاعات پایه</h4>
+            <table>
+              <tr><th>مدرسه</th><td>${formData.school}</td></tr>
+              <tr><th>مدیر</th><td>${formData.manager}</td></tr>
+              <tr><th>کد پرسنلی</th><td>${formData.personnel_code}</td></tr>
+              <tr><th>بازرس</th><td>${formData.inspector}</td></tr>
+              <tr><th>تاریخ (شمسی)</th><td>${formData.persian_date}</td></tr>
+              <tr><th>مدت</th><td>${formData.duration}</td></tr>
+              <tr><th>توضیحات</th><td>${formData.extra_comments || '-'}</td></tr>
+            </table>
+          </div>
+      `;
+
+      Object.keys(monthAxes).forEach(month => {
+        if (formData.months[month]) {
+          const scores = formData.months[month].scores;
+          const comments = formData.months[month].comments;
+          content += `
+            <div class="section">
+              <h4>ماه ${month}</h4>
+              <table>
+                <tr><th>ردیف</th><th>محور</th><th>توضیح</th><th>نمره</th></tr>
+                ${monthAxes[month].map((axis, i) => `
+                  <tr>
+                    <td>${i + 1}</td>
+                    <td>${axis}</td>
+                    <td>${comments[i] || '-'}</td>
+                    <td>${scores[i] || '-'}</td>
+                  </tr>
+                `).join('')}
+              </table>
+            </div>
+          `;
+        }
+      });
+
+      content += `
+          <div class="section">
+            <h4>جمع‌بندی</h4>
+            <table>
+              <tr><th>میانگین کل</th><td>${document.getElementById('overall_avg').textContent}</td></tr>
+            </table>
+          </div>
+          <div class="section">
+            <h4>تحلیل هوشمند</h4>
+            <table>
+              ${document.getElementById('smart_analysis').innerHTML}
+            </table>
+          </div>
+        </body>
+        </html>
+      `;
+
+      return content;
+    }
+
+    // تابع صادرات به JSON
+    function exportToJSON() {
+      const forms = Object.keys(localStorage).filter(key => key.startsWith('inspection_form_')).map(key => JSON.parse(localStorage.getItem(key)));
+      if (forms.length === 0) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'هشدار',
+          text: 'هیچ فرمی برای صادرات وجود ندارد.',
+        });
+        return;
+      }
+
+      const jsonContent = JSON.stringify(forms, null, 2);
+      const blob = new Blob([jsonContent], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'inspection_forms.json';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      Swal.fire({
+        icon: 'success',
+        title: 'صادر شد',
+        text: 'داده‌ها به فایل JSON صادر شدند.',
+      });
+    }
+
+    // تابع ورود از JSON
+    function importJSON() {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json';
+      input.onchange = function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          try {
+            const forms = JSON.parse(e.target.result);
+            const personnelMap = {};
+            forms.forEach(formData => {
+              const personnelCode = formData.personnel_code;
+              const key = `inspection_form_${formData.manager}_${formData.date}_${personnelCode}`;
+              const existingData = JSON.parse(localStorage.getItem(key)) || {};
+              const existingDate = existingData.date ? new Date(existingData.date) : new Date(0);
+              const newDate = formData.date ? new Date(formData.date) : new Date(0);
+              if (!personnelMap[personnelCode] || newDate > personnelMap[personnelCode].date) {
+                personnelMap[personnelCode] = { key, data: formData, date: newDate };
+              }
+            });
+            Object.values(personnelMap).forEach(({ key, data }) => {
+              localStorage.setItem(key, JSON.stringify(data));
+            });
+            loadFormList();
+            Swal.fire({
+              icon: 'success',
+              title: 'وارد شد',
+              text: 'داده‌ها از فایل JSON وارد شدند.',
+            });
+          } catch (err) {
+            Swal.fire({
+              icon: 'error',
+              title: 'خطا',
+              text: 'فایل JSON معتبر نیست.',
+            });
+          }
+        };
+        reader.readAsText(file);
+      };
+      input.click();
+    }
+
+    // تابع صادرات به اکسل (CSV)
+    function exportToCSV() {
+      const forms = Object.keys(localStorage).filter(key => key.startsWith('inspection_form_')).map(key => JSON.parse(localStorage.getItem(key)));
+      if (forms.length === 0) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'هشدار',
+          text: 'هیچ فرمی وجود ندارد.',
+        });
+        return;
+      }
+
+      const months = Object.keys(monthAxes);
+      const headers = [
+        'مدرسه', 'مدیر', 'کد پرسنلی', 'بازرس', 'تاریخ (شمسی)', 'مدت', 'توضیحات اضافی',
+        ...months.flatMap(month => monthAxes[month].map((axis, i) => `${month} - امتیاز محور ${i+1}`)),
+        ...months.flatMap(month => monthAxes[month].map((axis, i) => `${month} - توضیح محور ${i+1}`)),
+        'میانگین کل'
+      ];
+
+      const rows = forms.map(formData => {
+        let totalSum = 0;
+        let totalCount = 0;
+        const monthData = months.flatMap(month => {
+          if (formData.months[month]) {
+            const scores = formData.months[month].scores.map(s => scoreValues[s] || 0);
+            const validScores = scores.filter(s => s > 0);
+            totalSum += validScores.reduce((a, b) => a + b, 0);
+            totalCount += validScores.length;
+            return [
+              ...formData.months[month].scores,
+              ...formData.months[month].comments
+            ];
+          } else {
+            return Array(monthAxes[month].length * 2).fill('-');
+          }
+        });
+
+        const overallAvg = totalCount > 0 ? (totalSum / totalCount).toFixed(2) : 0;
+
+        return [
+          formData.school,
+          formData.manager,
+          formData.personnel_code,
+          formData.inspector,
+          formData.persian_date,
+          formData.duration,
+          formData.extra_comments || '-',
+          ...monthData,
+          overallAvg
+        ].map(val => `"${val.toString().replace(/"/g, '""')}"`).join(',');
+      });
+
+      const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + headers.join(',') + '\n' + rows.join('\n');
+      const link = document.createElement('a');
+      link.href = encodeURI(csvContent);
+      link.download = 'inspection_forms.csv';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      Swal.fire({
+        icon: 'success',
+        title: 'صادر شد',
+        text: 'فایل CSV صادر شد.',
+      });
+    }
+
+    // تابع ورود از اکسل (CSV)
+    function importCSV() {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.csv';
+      input.onchange = function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        Papa.parse(file, {
+          complete: function(results) {
+            try {
+              const headers = results.data[0];
+              const rows = results.data.slice(1);
+              const personnelMap = {};
+              rows.forEach(row => {
+                const formData = {
+                  school: row[0] || '',
+                  manager: row[1] || '',
+                  personnel_code: row[2] || '',
+                  inspector: row[3] || '',
+                  persian_date: row[4] || '',
+                  date: moment(row[4], 'YYYY/MM/DD').locale('en').format('YYYY-MM-DD') || '',
+                  duration: row[5] || '',
+                  extra_comments: row[6] || '',
+                  months: {}
+                };
+                const months = Object.keys(monthAxes);
+                let colIndex = 7;
+                months.forEach(month => {
+                  const scores = [];
+                  const comments = [];
+                  for (let i = 0; i < monthAxes[month].length; i++) {
+                    scores.push(row[colIndex] || '');
+                    colIndex++;
+                  }
+                  for (let i = 0; i < monthAxes[month].length; i++) {
+                    comments.push(row[colIndex] || '');
+                    colIndex++;
+                  }
+                  if (scores.some(s => s && s !== '-')) {
+                    formData.months[month] = { scores, comments };
+                  }
+                });
+                const personnelCode = formData.personnel_code;
+                const key = `inspection_form_${formData.manager}_${formData.date}_${personnelCode}`;
+                const existingData = JSON.parse(localStorage.getItem(key)) || {};
+                const existingDate = existingData.date ? new Date(existingData.date) : new Date(0);
+                const newDate = formData.date ? new Date(formData.date) : new Date(0);
+                if (!personnelMap[personnelCode] || newDate > personnelMap[personnelCode].date) {
+                  personnelMap[personnelCode] = { key, data: formData, date: newDate };
+                }
+              });
+              Object.values(personnelMap).forEach(({ key, data }) => {
+                localStorage.setItem(key, JSON.stringify(data));
+              });
+              loadFormList();
+              Swal.fire({
+                icon: 'success',
+                title: 'وارد شد',
+                text: 'داده‌ها از فایل CSV وارد شدند.',
+              });
+            } catch (err) {
+              Swal.fire({
+                icon: 'error',
+                title: 'خطا',
+                text: 'فایل CSV معتبر نیست.',
+              });
+            }
+          },
+          header: false,
+          encoding: 'UTF-8'
+        });
+      };
+      input.click();
+    }
+
+    // تابع پاک کردن تمام اطلاعات
+    function clearAllData() {
+      Swal.fire({
+        title: 'آیا مطمئن هستید؟',
+        text: 'تمام داده‌های ذخیره‌شده پاک خواهد شد.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'بله',
+        cancelButtonText: 'خیر'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          localStorage.clear();
+          loadFormList();
+          clearForm();
+          Swal.fire('پاک شد!', 'تمام اطلاعات پاک شد.', 'success');
+        }
+      });
+    }
+  </script>
+</body>
+</html>
